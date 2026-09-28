@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: ritmo-pro-man
+    runtime: node
+    plan: free
+    domains:
+      - ritmoproman.com
+      - www.ritmoproman.com
+    renderSubdomainPolicy: disabled
+    buildCommand: corepack enable && corepack pnpm install --frozen-lockfile && corepack pnpm build
+    startCommand: corepack pnpm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: MERCADOPAGO_ACCESS_TOKEN
+        sync: false
+      - key: MERCADOPAGO_WEBHOOK_SECRET
+        sync: false

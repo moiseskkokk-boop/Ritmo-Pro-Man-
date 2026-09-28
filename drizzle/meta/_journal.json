@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1790543009187,
+      "tag": "0000_numerous_iron_patriot",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1790575100785,
+      "tag": "0001_curved_sheva_callister",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1790575137665,
+      "tag": "0002_cloudy_zemo",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1790584115489,
+      "tag": "0003_tranquil_shinko_yamashiro",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1790593625326,
+      "tag": "0004_hard_grandmaster",
+      "breakpoints": true
+    }
+  ]
+}

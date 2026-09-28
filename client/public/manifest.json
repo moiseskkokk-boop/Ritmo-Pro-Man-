@@ -1,0 +1,25 @@
+{
+  "name": "Ritmo Pro Man",
+  "short_name": "Ritmo Pro Man",
+  "description": "Treino 4x por semana para elevar sua performance e evoluir com constância.",
+  "id": "/",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0d0c",
+  "theme_color": "#0b0d0c",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "/ritmo-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/ritmo-mark.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
