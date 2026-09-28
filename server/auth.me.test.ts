@@ -19,7 +19,7 @@ describe("auth.me", () => {
       openId: "ritmo-client-7",
       name: "João Silva",
       email: "joao@example.com",
-      loginMethod: "manus",
+      loginMethod: "email",
       role: "user",
       createdAt: new Date(),
       updatedAt: new Date(),

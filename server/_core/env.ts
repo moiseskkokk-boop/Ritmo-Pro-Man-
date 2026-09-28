@@ -10,6 +10,7 @@ export const ENV = {
   geminiUserDailyTokenLimit: Number(process.env.GEMINI_USER_DAILY_TOKEN_LIMIT ?? "20000"),
   geminiMaxInputTokens: Number(process.env.GEMINI_MAX_INPUT_TOKENS ?? "12000"),
   geminiMaxOutputTokens: Number(process.env.GEMINI_MAX_OUTPUT_TOKENS ?? "5000"),
-  forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
-  forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
+  supabaseUrl: process.env.SUPABASE_URL ?? "",
+  supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
+  supabaseStorageBucket: process.env.SUPABASE_STORAGE_BUCKET ?? "ritmo-private",
 };

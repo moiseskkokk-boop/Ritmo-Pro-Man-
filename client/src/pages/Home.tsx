@@ -232,66 +232,66 @@ const week = ["SEG", "TER", "QUA", "QUI", "SEX", "SÁB", "DOM"];
 
 const imageByExercise: Record<string, string> = {
   "Supino Banco Reto Halter":
-    "/manus-storage/A01-supino-reto-halter_2be95048.png",
+    "/exercises/A01-supino-reto-halter_2be95048.png",
   "Crucifixo Fly Máquina":
-    "/manus-storage/A02-crucifixo-fly-maquina_e740670e.png",
+    "/exercises/A02-crucifixo-fly-maquina_e740670e.png",
   "Supino Banco Inclinado Máquina":
-    "/manus-storage/A03-supino-inclinado-maquina_6062b6d0.png",
+    "/exercises/A03-supino-inclinado-maquina_6062b6d0.png",
   "Desenvolvimento Halter":
-    "/manus-storage/A04-desenvolvimento-halter_3cd05927.png",
+    "/exercises/A04-desenvolvimento-halter_3cd05927.png",
   "Elevação Lateral Halter":
-    "/manus-storage/A05-elevacao-lateral-halter_6079ff85.png",
+    "/exercises/A05-elevacao-lateral-halter_6079ff85.png",
   "Tríceps Francês Halter":
-    "/manus-storage/A06-triceps-frances-halter_fa9e2c6d.png",
+    "/exercises/A06-triceps-frances-halter_fa9e2c6d.png",
   "Tríceps Polia Alta Barra W":
-    "/manus-storage/A07-triceps-polia-barra-w_aa3d916f.png",
+    "/exercises/A07-triceps-polia-barra-w_aa3d916f.png",
   "Elevação de Joelhos Paralela":
-    "/manus-storage/A08-elevacao-joelhos-paralela_79bfcd15.png",
+    "/exercises/A08-elevacao-joelhos-paralela_79bfcd15.png",
   "Puxada Aberta Barra Pronada":
-    "/manus-storage/B01-puxada-aberta-pronada_21a07def.png",
+    "/exercises/B01-puxada-aberta-pronada_21a07def.png",
   "Remada Cavalinho Máquina Pronada":
-    "/manus-storage/B02-remada-cavalinho-pronada_9a66dfd5.png",
+    "/exercises/B02-remada-cavalinho-pronada_9a66dfd5.png",
   "Pulldown Polia Alta Barra":
-    "/manus-storage/B03-pulldown-polia-barra_2da4531e.png",
+    "/exercises/B03-pulldown-polia-barra_2da4531e.png",
   "Remada Unilateral Halter Banco":
-    "/manus-storage/B04-remada-unilateral-halter-banco_8608570a.png",
-  "Rosca Scott Barra": "/manus-storage/B05-rosca-scott-barra_1137a873.png",
+    "/exercises/B04-remada-unilateral-halter-banco_8608570a.png",
+  "Rosca Scott Barra": "/exercises/B05-rosca-scott-barra_1137a873.png",
   "Rosca Martelo Halter":
-    "/manus-storage/B06-rosca-martelo-halter_6a04406e.png",
+    "/exercises/B06-rosca-martelo-halter_6a04406e.png",
   "Rosca Alternada Halter Em Pé":
-    "/manus-storage/B07-rosca-alternada-halter-em-pe_c133509c.png",
+    "/exercises/B07-rosca-alternada-halter-em-pe_c133509c.png",
   "Crunch Polia Alta Corda Barra":
-    "/manus-storage/B08-crunch-polia-alta_094cbe8b.png",
+    "/exercises/B08-crunch-polia-alta_094cbe8b.png",
   "Agachamento Hack Máquina":
-    "/manus-storage/C01-agachamento-hack_ff4313c0.png",
-  "Leg Press 45° Máquina": "/manus-storage/C02-leg-press-45_70ed7d8c.png",
+    "/exercises/C01-agachamento-hack_ff4313c0.png",
+  "Leg Press 45° Máquina": "/exercises/C02-leg-press-45_70ed7d8c.png",
   "Cadeira Extensora Máquina":
-    "/manus-storage/C03-cadeira-extensora_014ce6e1.png",
-  "Cadeira Flexora Máquina": "/manus-storage/C04-cadeira-flexora_d43175f7.png",
-  "Mesa Flexora Máquina": "/manus-storage/C05-mesa-flexora_55f31beb.png",
+    "/exercises/C03-cadeira-extensora_014ce6e1.png",
+  "Cadeira Flexora Máquina": "/exercises/C04-cadeira-flexora_d43175f7.png",
+  "Mesa Flexora Máquina": "/exercises/C05-mesa-flexora_55f31beb.png",
   "Elevação Pélvica Máquina":
-    "/manus-storage/C06-elevacao-pelvica-maquina_4c7db6d0.png",
+    "/exercises/C06-elevacao-pelvica-maquina_4c7db6d0.png",
   "Panturrilha Sentado Máquina":
-    "/manus-storage/C07-panturrilha-sentado_7bff436b.png",
+    "/exercises/C07-panturrilha-sentado_7bff436b.png",
   "Prancha Peso Corporal":
-    "/manus-storage/C08-prancha-peso-corporal_a426530f.png",
+    "/exercises/C08-prancha-peso-corporal_a426530f.png",
   "Supino Máquina Articulada Bilateral":
-    "/manus-storage/D01-supino-maquina-articulada_f820cd33.png",
+    "/exercises/D01-supino-maquina-articulada_f820cd33.png",
   "Supino Banco Inclinado Halter":
-    "/manus-storage/D02-supino-inclinado-halter_fd794bfe.png",
+    "/exercises/D02-supino-inclinado-halter_fd794bfe.png",
   "Puxada Fechada Barra Supinada":
-    "/manus-storage/D04-puxada-fechada-supinada_26964167.png",
+    "/exercises/D04-puxada-fechada-supinada_26964167.png",
   "Tríceps Testa Polia Alta Corda":
-    "/manus-storage/D06-triceps-testa-polia-corda_2e20c396.png",
+    "/exercises/D06-triceps-testa-polia-corda_2e20c396.png",
   "Rosca Direta Polia Baixa Barra V":
-    "/manus-storage/D07-rosca-direta-polia-barra-v_b29e58d5.png",
+    "/exercises/D07-rosca-direta-polia-barra-v_b29e58d5.png",
   "Abdominal Parcial Solo":
-    "/manus-storage/D08-abdominal-parcial-solo_0600f291.png",
+    "/exercises/D08-abdominal-parcial-solo_0600f291.png",
 };
 
 const imageFor = (exercise: Exercise) =>
   imageByExercise[exercise.name] ??
-  "/manus-storage/D05-elevacao-lateral-halter_6aca1f0c.png";
+  "/exercises/D05-elevacao-lateral-halter_6aca1f0c.png";
 
 type Language = "pt" | "en" | "es";
 const copy = {
