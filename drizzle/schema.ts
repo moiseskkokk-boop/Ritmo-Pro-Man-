@@ -11,7 +11,7 @@ export const users = mysqlTable("users", {
    * Use this for relations between tables.
    */
   id: int("id").autoincrement().primaryKey(),
-  /** Manus OAuth identifier (openId) returned from the OAuth callback. Unique per user. */
+  /** Authentication identifier (openId) for the application user. Unique per user. */
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   passwordHash: varchar("passwordHash", { length: 255 }),
   name: text("name"),
