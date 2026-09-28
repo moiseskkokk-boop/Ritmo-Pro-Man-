@@ -117,6 +117,8 @@ export const appRouter = router({
       if (!assessment || !analysis.dataAvailable || analysis.workoutsCompleted < 4) return fallback();
       try {
         const llmResponse = await invokeLLM({
+          userId: ctx.user.id,
+          feature: "day5",
           messages: [
             { role: "system", content: "Você é o motor de personalização do Ritmo Pro Man. Analise somente os dados JSON fornecidos. Nunca invente métricas, nunca substitua os quatro treinos principais e recomende o quinto dia apenas como opcional. Se um campo for null, trate-o como indisponível. Escreva a rationale no idioma indicado no campo language (pt, en ou es). Responda apenas com o JSON do schema." },
             { role: "user", content: JSON.stringify({ language: input.language, week: analysis, assessment, previousAssessments: (history as any[]).filter((row: any) => row.weekStart !== input.weekStart).slice(0, 6).map((row: any) => ({ weekStart: row.weekStart, objective: row.objective, cardio: row.cardio, sleep: row.sleep, recovery: row.recovery, fatigue: row.fatigue, benchPressLevel: row.benchPressLevel, squatLevel: row.squatLevel })) }) },
