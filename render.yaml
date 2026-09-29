@@ -8,26 +8,70 @@ services:
       - www.ritmoproman.com
     renderSubdomainPolicy: disabled
     buildCommand: corepack enable && corepack pnpm install --frozen-lockfile && corepack pnpm build
-    startCommand: corepack pnpm start
+    startCommand: corepack pnpm db:migrate && corepack pnpm start
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
         sync: false
+      - key: DATABASE_SSL_CA
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: GEMINI_API_KEY
         sync: false
       - key: GEMINI_MODEL
-        value: gemini-2.5-flash-lite
+        value: gemini-3.5-flash-lite
+      - key: GEMINI_DAILY_TOKEN_LIMIT
+        value: "100000"
+      - key: GEMINI_USER_DAILY_TOKEN_LIMIT
+        value: "20000"
+      - key: GEMINI_MAX_INPUT_TOKENS
+        value: "12000"
+      - key: GEMINI_MAX_OUTPUT_TOKENS
+        value: "5000"
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
       - key: SUPABASE_STORAGE_BUCKET
         value: ritmo-private
+      - key: PUBLIC_APP_URL
+        value: https://ritmoproman.com
+      - key: APP_TIME_ZONE
+        value: Europe/Lisbon
+      - key: WEARABLE_TOKEN_ENCRYPTION_KEY
+        sync: false
+      - key: GOOGLE_HEALTH_CLIENT_ID
+        sync: false
+      - key: GOOGLE_HEALTH_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_HEALTH_REDIRECT_URI
+        value: https://ritmoproman.com/api/wearables/callback/google_health
+      - key: GARMIN_CLIENT_ID
+        sync: false
+      - key: GARMIN_CLIENT_SECRET
+        sync: false
+      - key: GARMIN_AUTHORIZE_URL
+        sync: false
+      - key: GARMIN_TOKEN_URL
+        sync: false
+      - key: GARMIN_API_BASE_URL
+        sync: false
       - key: MERCADOPAGO_ACCESS_TOKEN
         sync: false
       - key: MERCADOPAGO_WEBHOOK_SECRET
+        sync: false
+      - key: MERCADOPAGO_PLAN_MONTHLY_PRICE
+        value: "33.99"
+      - key: MERCADOPAGO_CURRENCY
+        value: BRL
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: APPLE_SERVICE_ID
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
         sync: false

@@ -1,0 +1,1 @@
+ALTER TABLE `mercadopago_webhook_events` ADD `processingAt` timestamp;

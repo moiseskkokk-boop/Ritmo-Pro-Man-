@@ -36,6 +36,83 @@
       "when": 1790593625326,
       "tag": "0004_hard_grandmaster",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1790628262294,
+      "tag": "0005_auth_users_consistency",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1790628532541,
+      "tag": "0006_session_version",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1790629067757,
+      "tag": "0007_productive_radioactive_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1790692093027,
+      "tag": "0008_flowery_big_bertha",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1790695323093,
+      "tag": "0009_mercado_pago_subscriptions",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1790695403683,
+      "tag": "0010_subscription_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1790702915530,
+      "tag": "0011_webhook_processing_lease",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1790703246611,
+      "tag": "0012_gemini_usage_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1790710259137,
+      "tag": "0013_tiresome_omega_sentinel",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "5",
+      "when": 1790711389488,
+      "tag": "0014_clammy_baron_zemo",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "5",
+      "when": 1790711985245,
+      "tag": "0015_nebulous_slayback",
+      "breakpoints": true
     }
   ]
 }

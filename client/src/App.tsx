@@ -7,6 +7,14 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import Profile from "./pages/Profile";
 import Login from "./pages/Login";
+import WorkoutBuilder, { WorkoutsLibrary } from "./pages/Workouts";
+import LegalPage from "./pages/Legal";
+import Dashboard from "./pages/Dashboard";
+import DailyHealth from "./pages/DailyHealth";
+import SmartwatchPage from "./pages/Smartwatch";
+import WeeklyAssessmentPage from "./pages/WeeklyAssessment";
+import SubscriptionPage from "./pages/Subscription";
+import SignOutPage from "./pages/SignOut";
 
 const TrainingPage = () => <Home view="training" />;
 const AnalysisPage = () => <Home view="analysis" />;
@@ -19,6 +27,16 @@ function Router() {
       <Route path={"/treino"} component={TrainingPage} />
       <Route path={"/analise"} component={AnalysisPage} />
       <Route path={"/perfil"} component={Profile} />
+      <Route path={"/dashboard"} component={Dashboard} />
+      <Route path={"/treinos"} component={WorkoutsLibrary} />
+      <Route path={"/treinos/criar"} component={WorkoutBuilder} />
+      <Route path={"/alimentacao"} component={DailyHealth} />
+      <Route path={"/smartwatch"} component={SmartwatchPage} />
+      <Route path={"/avaliacao"} component={WeeklyAssessmentPage} />
+      <Route path={"/assinatura"} component={SubscriptionPage} />
+      <Route path={"/sair"} component={SignOutPage} />
+      <Route path={"/termos"}>{() => <LegalPage kind="terms" />}</Route>
+      <Route path={"/privacidade"}>{() => <LegalPage kind="privacy" />}</Route>
       <Route path={"/login"} component={Login} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}

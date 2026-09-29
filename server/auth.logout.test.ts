@@ -1,7 +1,17 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("./db", async importOriginal => {
+  const actual = await importOriginal<typeof import("./db")>();
+  return {
+    ...actual,
+    invalidateUserSessions: vi.fn().mockResolvedValue(undefined),
+  };
+});
+
 import { appRouter } from "./routers";
 import { COOKIE_NAME } from "../shared/const";
 import type { TrpcContext } from "./_core/context";
+import { invalidateUserSessions } from "./db";
 
 type CookieCall = {
   name: string;
@@ -16,6 +26,7 @@ function createAuthContext(): { ctx: TrpcContext; clearedCookies: CookieCall[] }
   const user: AuthenticatedUser = {
     id: 1,
     openId: "sample-user",
+    sessionVersion: 0,
     email: "sample@example.com",
     name: "Sample User",
     loginMethod: "email",
@@ -54,9 +65,10 @@ describe("auth.logout", () => {
     expect(clearedCookies[0]?.options).toMatchObject({
       maxAge: -1,
       secure: true,
-      sameSite: "none",
+      sameSite: "lax",
       httpOnly: true,
       path: "/",
     });
+    expect(invalidateUserSessions).toHaveBeenCalledWith(1);
   });
 });

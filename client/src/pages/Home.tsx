@@ -2,6 +2,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { trpc } from "@/lib/trpc";
+import type { ExerciseId } from "@shared/workouts";
 import {
   Activity,
   ArrowUpRight,
@@ -1116,8 +1117,31 @@ const assessmentCopy = {
   },
 } as const;
 
+const APP_TIME_ZONE = import.meta.env.VITE_APP_TIME_ZONE || "Europe/Lisbon";
+const appCalendarDate = (instant = new Date()) => {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: APP_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(instant);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find(item => item.type === type)?.value ?? "0";
+  return new Date(Number(part("year")), Number(part("month")) - 1, Number(part("day")), 12);
+};
 const localIso = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+async function prepareBodyPhoto(file: File): Promise<string> {
+  if (!file.type.startsWith("image/") || file.size > 15_000_000) throw new Error("Selecione uma imagem até 15 MB.");
+  const image = await createImageBitmap(file);
+  const scale = Math.min(1, 1600 / Math.max(image.width, image.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(image.width * scale));
+  canvas.height = Math.max(1, Math.round(image.height * scale));
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Não foi possível processar a imagem.");
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  image.close();
+  for (const quality of [0.82, 0.72, 0.62, 0.52, 0.42]) {
+    const dataUrl = canvas.toDataURL("image/jpeg", quality);
+    if (dataUrl.length <= 2_000_000) return dataUrl;
+  }
+  throw new Error("Reduza a resolução da imagem antes de enviar.");
+}
 const mondayOf = (date: Date) => {
   const copy = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   const day = copy.getDay() || 7;
@@ -1526,14 +1550,16 @@ type Day5Recommendation = {
   confidence: "low" | "medium" | "high";
   source: "ai" | "rules";
   historyWeeksConsidered: number;
+  exercises?: { exerciseId: ExerciseId; sets: number; reps: string; loadKg: number | null; restSeconds: number; note?: string | null; name: string; prescription: string }[];
 };
+type BodyPhotoSlot = "front" | "back" | "right" | "left";
 
 export type HomeView = "training" | "analysis";
 
 export default function Home({ view = "training" }: { view?: HomeView }) {
   let { user, loading, logout } = useAuth();
-  const [today, setToday] = useState(() => new Date());
-  const [selectedDate, setSelectedDate] = useState(() => localIso(new Date()));
+  const [today, setToday] = useState(() => appCalendarDate());
+  const [selectedDate, setSelectedDate] = useState(() => localIso(appCalendarDate()));
   const [selectedId, setSelectedId] = useState("");
   const [selectedWorkoutIds, setSelectedWorkoutIds] = useState<
     Record<string, string>
@@ -1548,6 +1574,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
   );
   const [consentChecked, setConsentChecked] = useState(false);
   const [day5Open, setDay5Open] = useState(false);
+  const [day5Saved, setDay5Saved] = useState(false);
   const [language, setLanguage] = useState<Language>(
     () => (localStorage.getItem("ritmo-mf-language") as Language) || "pt"
   );
@@ -1557,6 +1584,8 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
     right: null,
     left: null,
   });
+  const [photoFiles, setPhotoFiles] = useState<Record<BodyPhotoSlot, string | null>>({ front: null, back: null, right: null, left: null });
+  const [bodyNotice, setBodyNotice] = useState("");
   const [installOpen, setInstallOpen] = useState(false);
   const [installAvailable, setInstallAvailable] = useState(false);
   const [assessmentDraft, setAssessmentDraft] =
@@ -1574,6 +1603,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
   const [metricsNotice, setMetricsNotice] = useState("");
   const [restartNotice, setRestartNotice] = useState("");
   const [deviceNotice, setDeviceNotice] = useState("");
+  const [weeklyWearableInsight, setWeeklyWearableInsight] = useState<{ sufficient: boolean; source: string; summary: string; recommendations: string[] } | null>(null);
   const [activeSyncProvider, setActiveSyncProvider] = useState<
     DeviceProvider | ""
   >("");
@@ -1707,6 +1737,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
     weeklyAnalysisInput,
     { enabled: Boolean(user) }
   );
+  const bodyAnalysisHistory = trpc.progress.bodyAnalysisHistory.useQuery(undefined, { enabled: Boolean(user), staleTime: 0 });
   const saveAssessmentMutation = trpc.progress.saveAssessment.useMutation({
     onSuccess: () => {
       setAssessmentDirty(false);
@@ -1771,31 +1802,45 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
   const requestWearableConnectionMutation =
     trpc.progress.requestWearableConnection.useMutation({
       onSuccess: result => {
-        setDeviceNotice(
-          result.authorizationRequired
-            ? d.authorizationRequiredMessage
-            : d.syncMessage
-        );
+        if (result.authorizationUrl) window.location.assign(result.authorizationUrl);
+        else setDeviceNotice(result.message);
         progressUtils.progress.wearableConnections.invalidate();
       },
     });
   const requestWearableSyncMutation =
     trpc.progress.requestWearableSync.useMutation({
-      onSuccess: () => {
+      onSuccess: result => {
         setActiveSyncProvider("");
-        setDeviceNotice(d.syncMessage);
+        setDeviceNotice(result.message);
         progressUtils.progress.wearableConnections.invalidate();
         progressUtils.progress.wearableActivities.invalidate();
         progressUtils.progress.weeklyActivityAnalysis.invalidate();
       },
+      onError: error => { setActiveSyncProvider(""); setDeviceNotice(error.message); },
     });
+  const analyzeWeeklyWearableMutation = trpc.progress.analyzeWeeklyWearable.useMutation({ onSuccess: setWeeklyWearableInsight });
+  const disconnectWearableMutation = trpc.progress.disconnectWearable.useMutation({ onSuccess: () => { setDeviceNotice("Dispositivo desligado."); progressUtils.progress.wearableConnections.invalidate(); } });
   const ingestWearableMutation =
     trpc.progress.ingestWearableActivity.useMutation();
   const analyzeDay5Mutation = trpc.progress.analyzeDay5.useMutation({
     onSuccess: result => {
       setAiDay5(result as Day5Recommendation);
+      setDay5Saved(false);
       setDay5Open(true);
     },
+  });
+  const saveDay5Mutation = trpc.workouts.create.useMutation({
+    onSuccess: async () => { setDay5Saved(true); await progressUtils.workouts.list.invalidate(); },
+    onError: error => setDeviceNotice(error.message),
+  });
+  const analyzeBodyMutation = trpc.progress.analyzeBody.useMutation({
+    onSuccess: () => {
+      setBodyNotice(language === "en" ? "Monthly analysis saved." : language === "es" ? "Análisis mensual guardado." : "Análise mensal guardada.");
+      setPhotoFiles({ front: null, back: null, right: null, left: null });
+      setPhotos({ front: null, back: null, right: null, left: null });
+      bodyAnalysisHistory.refetch();
+    },
+    onError: error => setBodyNotice(error.message),
   });
   const statusByDate = useMemo(
     () =>
@@ -1822,13 +1867,13 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
       : null,
     weeklyActivityAnalysis.data
   );
+  const day5Eligible = todayIndex >= 4 && Boolean(assessmentQuery.data) && (weeklyActivityAnalysis.data?.workoutsCompleted ?? 0) >= 4;
   const effectiveRecommendation =
-    aiDay5?.recommendation ?? currentRecommendation;
+    aiDay5?.recommendation ?? (day5Eligible ? currentRecommendation : "waiting");
   const recommendationLabel =
     day5Labels[language][
       effectiveRecommendation as keyof (typeof day5Labels)["pt"]
     ] ?? day5Labels[language].waiting;
-  const day5Eligible = todayIndex >= 4 && currentRecommendation !== "waiting";
   const wearableDataAvailable = Boolean(wearableActivities.data?.length);
   const selectedConnection = wearableConnections.data?.find(
     row => row.provider === selectedProvider
@@ -1847,6 +1892,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
     activityDate = selectedDate
   ) => {
     if (!user) return;
+    if (activityDate !== todayIso) return;
     saveDailyMutation.mutate({
       activityDate,
       workoutId: workoutId || null,
@@ -1863,6 +1909,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
     });
   };
   const toggle = (key: string) => {
+    if (selectedDate !== todayIso) return;
     const next = { ...completed, [key]: !completed[key] };
     setCompleted(next);
     persistDaily(next);
@@ -1923,7 +1970,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
   const requestSync = (provider: DeviceProvider) => {
     if (!user) return;
     setActiveSyncProvider(provider);
-    requestWearableSyncMutation.mutate({ provider });
+    requestWearableSyncMutation.mutate({ provider, from: weekStart, to: todayIso });
   };
   const handleSyncClick = () => {
     if (!user) return;
@@ -1932,6 +1979,9 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
       return;
     }
     requestSync(selectedProvider);
+  };
+  const handleWeeklyWearableAnalysis = () => {
+    analyzeWeeklyWearableMutation.mutate({ ...weeklyAnalysisInput, language });
   };
   const importActivities = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -2015,11 +2065,27 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
     if (!user || !day5Eligible) return;
     analyzeDay5Mutation.mutate({ ...weeklyAnalysisInput, weekStart, language });
   };
+  const analyzeBody = () => {
+    const selected = photoFiles;
+    if (!user || Object.values(selected).some(value => !value)) return;
+    setBodyNotice("");
+    analyzeBodyMutation.mutate({
+      language,
+      photos: { front: selected.front!, back: selected.back!, right: selected.right!, left: selected.left! },
+    });
+  };
 
   useEffect(() => {
-    const timer = window.setInterval(() => setToday(new Date()), 60_000);
+    const timer = window.setInterval(() => setToday(appCalendarDate()), 60_000);
     return () => window.clearInterval(timer);
   }, []);
+  useEffect(() => {
+    if (selectedDate !== todayIso) {
+      setSelectedDate(todayIso);
+      setSelectedId(selectedWorkoutIds[todayIso] ?? "");
+      setHydratedDate("");
+    }
+  }, [todayIso, selectedDate, selectedWorkoutIds]);
   useEffect(() => {
     if (!user || assessmentQuery.isLoading || hydratedWeek === weekStart)
       return;
@@ -2088,9 +2154,15 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
           </span>
         </a>
         <nav className="main-nav">
+          <a href="/dashboard">Painel</a>
           <a href="/perfil">{c.profile}</a>
           <a href="/treino">{c.training}</a>
+          <a href="/treinos">Meus treinos</a>
+          <a href="/smartwatch">Smartwatch</a>
+          <a href="/alimentacao">Alimentação e água</a>
+          <a href="/avaliacao">Avaliação</a>
           <a href="/analise">{c.bodyAnalysis}</a>
+          <a href="/assinatura">Assinatura</a>
           {user && (
             <button className="nav-logout" onClick={() => logout()}>
               {c.logout}
@@ -2413,9 +2485,10 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
                                   {t.demo}
                                 </button>
                               </div>
-                              <button
-                                className="confirm-btn"
-                                aria-label={`Confirmar ${exercise.name}`}
+                        <button
+                          className="confirm-btn"
+                          disabled={!isTodaySelectable}
+                          aria-label={`Confirmar ${exercise.name}`}
                                 onClick={() => toggle(key)}
                               >
                                 {isDone ? <Check size={18} /> : <span />}
@@ -2447,6 +2520,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
                       <label>
                         {a.cardioMinutes}
                         <input
+                          disabled={!isTodaySelectable}
                           type="number"
                           min="0"
                           max="1440"
@@ -2462,6 +2536,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
                       <label>
                         {a.water}
                         <input
+                          disabled={!isTodaySelectable}
                           type="number"
                           min="0"
                           step="0.1"
@@ -2477,6 +2552,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
                       <label>
                         {a.recoveryToday}
                         <select
+                          disabled={!isTodaySelectable}
                           value={dailyMetrics.recovery}
                           onChange={event =>
                             setDailyMetrics({
@@ -2496,6 +2572,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
                       <label className="metric-wide">
                         {a.meals}
                         <input
+                          disabled={!isTodaySelectable}
                           value={dailyMetrics.mealsNote}
                           onChange={event =>
                             setDailyMetrics({
@@ -2508,7 +2585,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
                     </div>
                     <button
                       className="dark-btn"
-                      disabled={!user || saveDailyMutation.isPending}
+                      disabled={!user || !isTodaySelectable || saveDailyMutation.isPending}
                       onClick={() => persistDaily()}
                     >
                       {a.saveMetrics}
@@ -2566,28 +2643,33 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
                       <button className="dark-btn smartwatch-sync" disabled={requestWearableSyncMutation.isPending} onClick={handleSyncClick}>
                         {activeSyncProvider === selectedProvider && requestWearableSyncMutation.isPending ? d.syncing : d.sync}
                       </button>
+                      {selectedConnection?.status === "connected" && <button className="outline-btn" disabled={disconnectWearableMutation.isPending} onClick={() => disconnectWearableMutation.mutate({ provider: selectedProvider })}>Desligar</button>}
                       <button className="outline-btn smartwatch-import" disabled={isImporting} onClick={() => importInputRef.current?.click()}>
                         <FileUp size={16} /> {isImporting ? d.importing : d.importFile}
                       </button>
                       <input ref={importInputRef} className="visually-hidden" type="file" accept=".csv,.json,text/csv,application/json" onChange={importActivities} />
                     </div>
+                    <p className="smartwatch-disclaimer">Os ficheiros importados são identificados como importação manual e não provam uma ligação oficial à plataforma selecionada.</p>
 
                     <div className="smartwatch-status-row">
                       <span className={`status-chip ${selectedConnection?.status === "connected" ? "ready" : ""}`}>
                         {selectedConnection?.status === "connected" ? <CheckCircle2 size={14} /> : <Clock3 size={14} />}
-                        {selectedConnection?.status === "connected" ? d.synced : d.authorization}
+                        {selectedConnection?.status === "connected" ? selectedConnection.lastSyncStatus === "error" ? "Erro na sincronização" : selectedConnection.lastSyncStatus === "syncing" ? d.syncing : selectedConnection.lastSyncStatus === "synced" ? d.synced : "Conectado · ainda não sincronizado" : selectedConnection?.status === "disconnected" ? "Desconectado" : selectedProvider === "apple_health" || selectedProvider === "health_connect" ? "Bridge nativo necessário" : d.authorization}
                       </span>
                       <strong>{d.providers[selectedProvider]}</strong>
-                      <small>{selectedConnection?.lastSyncedAt ? `${d.lastSync}: ${new Date(selectedConnection.lastSyncedAt).toLocaleString("pt-BR")}` : d.requirements[selectedProvider]}</small>
+                      <small>{selectedConnection?.lastSyncError || (selectedConnection?.lastSyncedAt ? `${d.lastSync}: ${new Date(selectedConnection.lastSyncedAt).toLocaleString("pt-BR")}` : d.requirements[selectedProvider])}</small>
                       <span>• Os dados ficam vinculados somente à sua conta.</span>
                     </div>
+                    {weeklyActivityAnalysis.data?.sources?.length ? <small className="smartwatch-source-list">Fontes de dados sincronizados: {weeklyActivityAnalysis.data.sources.map(source => d.providers[source as DeviceProvider] ?? source).join(", ")}</small> : null}
 
                     {deviceNotice && <p className="smartwatch-notice" role="status" aria-live="polite">{deviceNotice}</p>}
 
                     <div className="smartwatch-metrics">
                       {[
                         { label: d.workouts, value: `${weeklyActivityAnalysis.data?.workoutsCompleted ?? 0}/4`, Icon: Activity },
-                        { label: d.calories, value: weeklyActivityAnalysis.data?.caloriesKcal != null ? `${weeklyActivityAnalysis.data.caloriesKcal} kcal` : d.noValue, Icon: Activity },
+                        { label: "Calorias de treino", value: weeklyActivityAnalysis.data?.workoutCaloriesKcal != null ? `${weeklyActivityAnalysis.data.workoutCaloriesKcal} kcal` : d.noValue, Icon: Activity },
+                        { label: "Calorias ativas", value: weeklyActivityAnalysis.data?.activityCaloriesKcal != null ? `${weeklyActivityAnalysis.data.activityCaloriesKcal} kcal` : d.noValue, Icon: Activity },
+                        { label: "Calorias totais", value: weeklyActivityAnalysis.data?.totalCaloriesKcal != null ? `${weeklyActivityAnalysis.data.totalCaloriesKcal} kcal` : d.noValue, Icon: Activity },
                         { label: d.duration, value: weeklyActivityAnalysis.data?.durationMinutes != null ? `${weeklyActivityAnalysis.data.durationMinutes} min` : d.noValue, Icon: Clock3 },
                         { label: d.heartRate, value: weeklyActivityAnalysis.data?.averageHeartRate != null ? `${weeklyActivityAnalysis.data.averageHeartRate} bpm` : d.noValue, Icon: HeartPulse },
                       ].map(({ label, value, Icon: MetricIcon }) => (
@@ -2599,20 +2681,32 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
                       ))}
                     </div>
 
+                    <button className="outline-btn" disabled={analyzeWeeklyWearableMutation.isPending} onClick={handleWeeklyWearableAnalysis}>
+                      <Sparkles size={16} /> {analyzeWeeklyWearableMutation.isPending ? d.syncing : "Analisar semana com IA"}
+                    </button>
+                    {weeklyWearableInsight && <div className="smartwatch-notice" role="status">
+                      <strong>{weeklyWearableInsight.sufficient ? "Análise semanal" : "Dados insuficientes"}</strong>
+                      <p>{weeklyWearableInsight.summary}</p>
+                      {weeklyWearableInsight.recommendations.map((recommendation, index) => <p key={`${index}-${recommendation}`}>• {recommendation}</p>)}
+                    </div>}
+
                     <div className="smartwatch-history-heading">
                       <div><span className="smartwatch-kicker">/ HISTÓRICO DA SEMANA</span><h4>Atividade diária</h4></div>
                       <RefreshCw size={15} className={weeklyActivityAnalysis.isFetching ? "animate-spin" : ""} />
                     </div>
-                    {wearableActivities.data?.length ? (
+                    {wearableActivities.data?.length || weeklyActivityAnalysis.data?.dailySummaries?.length ? (
                       <div className="smartwatch-daily-grid">
-                        {Array.from(new Set(wearableActivities.data.map(activity => activity.activityDate))).slice(0, 7).map(date => {
+                        {Array.from(new Set([...(wearableActivities.data ?? []).map(activity => activity.activityDate), ...(weeklyActivityAnalysis.data?.dailySummaries ?? []).map(day => day.date)])).slice(0, 7).map(date => {
                           const dayActivities = wearableActivities.data?.filter(activity => activity.activityDate === date) ?? [];
-                          const calories = dayActivities.reduce((sum, item) => sum + (item.caloriesKcal ?? 0), 0);
-                          const steps = dayActivities.reduce((sum, item) => sum + (item.steps ?? 0), 0);
+                          const dailySummary = weeklyActivityAnalysis.data?.dailySummaries.find(day => day.date === date);
+                          const activityCalories = dayActivities.reduce((sum, item) => sum + (item.caloriesKcal ?? 0), 0);
+                          const calories = dailySummary?.workoutCaloriesKcal ?? (dayActivities.some(item => item.caloriesKcal != null) ? activityCalories : null);
+                          const steps = dailySummary?.steps ?? (dayActivities.some(item => item.steps != null) ? dayActivities.reduce((sum, item) => sum + (item.steps ?? 0), 0) : null);
+                          const manual = dayActivities.some(item => item.sourceType === "manual_import");
                           return <div key={date} className="smartwatch-day-card">
                             <span>{new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" })}</span>
-                            <p>{dayActivities.length} atividade(s)</p>
-                            <small>{calories ? `${calories} kcal` : d.noValue} · {steps ? `${steps} ${d.steps.toLowerCase()}` : d.noValue}</small>
+                            <p>{dailySummary?.activityCount ?? dayActivities.length} atividade(s){manual ? " · importação manual" : ""}</p>
+                            <small>{calories != null ? `${calories} kcal` : d.noValue} · {steps != null ? `${steps} ${d.steps.toLowerCase()}` : d.noValue}</small>
                           </div>;
                         })}
                       </div>
@@ -2940,9 +3034,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
                 </div>
                 <div className="day5-side">
                   <span className="status-chip">
-                    {currentRecommendation === "waiting"
-                      ? a.day5Waiting
-                      : a.day5Ready}
+                    {day5Eligible ? a.day5Ready : a.day5Waiting}
                   </span>
                   <button
                     className="outline-btn"
@@ -2962,7 +3054,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
                   <h2>{c.photosTitle}</h2>
                   <p>{c.photosLead}</p>
                 </div>
-                <span className="status-chip">{c.analysisPending}</span>
+                <span className="status-chip">{bodyAnalysisHistory.data?.length ? `${bodyAnalysisHistory.data.length} ${language === "pt" ? "meses guardados" : language === "es" ? "meses guardados" : "months saved"}` : c.analysisPending}</span>
               </div>
               <div className="photo-grid">
                 {photoLabels.map(slot => (
@@ -2978,20 +3070,56 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
                     </small>
                     <input
                       type="file"
-                      accept="image/*"
+                      accept="image/jpeg,image/png,image/webp"
                       onChange={event => {
                         const file = event.target.files?.[0];
-                        if (file)
+                        if (file) {
+                          void prepareBodyPhoto(file).then(dataUrl => {
+                            setPhotoFiles(current => ({ ...current, [slot.key as BodyPhotoSlot]: dataUrl }));
+                            setBodyNotice("");
+                          }).catch(error => setBodyNotice(error instanceof Error ? error.message : "Falha ao processar imagem."));
                           setPhotos(current => ({
                             ...current,
                             [slot.key]: URL.createObjectURL(file),
                           }));
+                        }
                       }}
                     />
                   </label>
                 ))}
               </div>
-              <p className="photo-disclaimer">{t.photoPending}</p>
+              <p className="photo-disclaimer">
+                {language === "en"
+                  ? "Image based estimates, not measurements. This analysis does not diagnose injuries, allergies, deficiencies or medical conditions. For concerns, consult a qualified professional."
+                  : language === "es"
+                    ? "Estimaciones basadas en imágenes, no mediciones. Este análisis no diagnostica lesiones, alergias, deficiencias ni enfermedades. Ante cualquier sospecha, consulta a un profesional cualificado."
+                    : "Resultados estimados com base nas imagens e dados fornecidos, não são medições clínicas. A análise não diagnostica lesões, alergias, deficiências ou condições médicas. Se houver suspeita ou informação relevante, procure um profissional qualificado."}
+              </p>
+              <button className="outline-btn" disabled={!user || Object.values(photoFiles).some(value => !value) || analyzeBodyMutation.isPending} onClick={analyzeBody}>
+                <Sparkles size={14} /> {analyzeBodyMutation.isPending ? d.analyzing : language === "en" ? "Analyze this month" : language === "es" ? "Analizar este mes" : "Analisar este mês"}
+              </button>
+              {bodyNotice && <p role="status" className="photo-disclaimer">{bodyNotice}</p>}
+              {bodyAnalysisHistory.data?.map((entry, index) => {
+                const result = entry.analysis;
+                const prior = bodyAnalysisHistory.data?.[index + 1];
+                const delta = entry.bodyFatEstimatePercent != null && prior?.bodyFatEstimatePercent != null
+                  ? entry.bodyFatEstimatePercent - prior.bodyFatEstimatePercent : null;
+                return <article className="section-shell" key={entry.analysisMonth} style={{ marginTop: 20 }}>
+                  <div className="section-kicker green">{entry.analysisMonth} · {entry.objective ?? (language === "pt" ? "objetivo não registado" : "goal not recorded")}</div>
+                  <h3>{language === "en" ? "Estimated body composition" : language === "es" ? "Composición corporal estimada" : "Composição corporal estimada"}</h3>
+                  <p>{entry.bodyFatEstimatePercent == null
+                    ? (language === "pt" ? "Percentual não estimado: imagem/dados insuficientes." : language === "es" ? "Porcentaje no estimado: imagen/datos insuficientes." : "Percentage not estimated: insufficient image/data.")
+                    : `${entry.bodyFatEstimatePercent}% · ${language === "pt" ? "estimativa visual" : language === "es" ? "estimación visual" : "visual estimate"}`}
+                    {entry.bodyFatEstimatePercent != null && ` · ${entry.confidencePercent}% ${language === "pt" ? "de confiança estimada" : language === "es" ? "de confianza estimada" : "estimated confidence"}`}
+                    {delta != null && ` · ${language === "pt" ? `variação mensal ${delta > 0 ? "+" : ""}${delta} p.p.` : language === "es" ? `cambio mensual ${delta > 0 ? "+" : ""}${delta} p.p.` : `monthly change ${delta > 0 ? "+" : ""}${delta} pp`}`}</p>
+                  <p>{result.observations}</p>
+                  <p><strong>{language === "pt" ? "Performance" : language === "es" ? "Rendimiento" : "Performance"}:</strong> {result.performanceAlignment}</p>
+                  <ul>{result.trainingConsiderations.map((item, itemIndex) => <li key={itemIndex}>{item}</li>)}</ul>
+                  <p><strong>{language === "pt" ? "Alimentação, água e registos diários" : language === "es" ? "Alimentación, agua y registros diarios" : "Food, water and daily logs"}:</strong> {result.nutritionHydrationReview}</p>
+                  {Object.entries(entry.photos).map(([slot, url]) => <img key={slot} src={url} alt={slot} loading="lazy" style={{ width: 72, height: 90, objectFit: "cover", borderRadius: 8, marginRight: 8 }} />)}
+                  <p className="confidence-note">{language === "pt" ? "Estimativa baseada nas fotos e dados fornecidos; não é diagnóstico. Não identifica de forma confiável lesões, alergias ou deficiências." : language === "es" ? "Estimación basada en fotos y datos aportados; no es un diagnóstico ni identifica de forma fiable lesiones, alergias o deficiencias." : "Estimate based on submitted photos and data; not a diagnosis and does not reliably identify injuries, allergies or deficiencies."}</p>
+                </article>;
+              })}
             </section>
           </>
         )}
@@ -3083,6 +3211,14 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
             <p className="eyebrow green-text">{t.day5Decision}</p>
             <h2>{recommendationLabel}</h2>
             <p>{aiDay5?.rationale || c.day5Lead}</p>
+            {aiDay5?.exercises?.length ? (
+              <div className="day5-workout">
+                <p><strong>{language === "pt" ? "Treino opcional gerado para esta semana" : language === "es" ? "Entrenamiento opcional generado para esta semana" : "Optional workout generated for this week"}</strong></p>
+                <ol>{aiDay5.exercises.map((exercise, index) => <li key={`${exercise.name}-${index}`}><strong>{exercise.name}</strong> — {exercise.prescription}</li>)}</ol>
+                <p className="confidence-note">{language === "pt" ? "Faça apenas se estiver recuperado; os quatro dias principais permanecem inalterados." : language === "es" ? "Realízalo solo si estás recuperado; los cuatro días principales no cambian." : "Only do this if recovered; the four main days remain unchanged."}</p>
+                {aiDay5.source === "ai" && <div className="profile-actions">{day5Saved ? <a className="outline-btn" href="/treinos">Treino salvo · abrir biblioteca</a> : <button className="dark-btn" disabled={saveDay5Mutation.isPending} onClick={() => saveDay5Mutation.mutate({ name: "Dia 5 opcional — " + recommendationLabel, objective: assessmentQuery.data?.objective || "Treino complementar", focusGroup: recommendationLabel, durationMinutes: 30, notes: aiDay5.rationale, source: "day5", exercises: aiDay5.exercises!.map(item => ({ exerciseId: item.exerciseId, sets: item.sets, reps: item.reps, loadKg: item.loadKg, restSeconds: item.restSeconds, note: item.note ?? null })) })}>{saveDay5Mutation.isPending ? "Salvando…" : "Salvar treino opcional"}</button>}</div>}
+              </div>
+            ) : aiDay5 ? <p className="confidence-note">{language === "pt" ? "Não foi possível gerar um plano opcional agora; os quatro treinos principais continuam disponíveis." : language === "es" ? "No se pudo generar un plan opcional ahora; los cuatro entrenamientos principales siguen disponibles." : "An optional plan could not be generated now; the four main workouts remain available."}</p> : null}
             {aiDay5 && (
               <small className="ai-source">
                 {aiDay5.source === "ai" ? d.aiBadge : d.rulesBadge}

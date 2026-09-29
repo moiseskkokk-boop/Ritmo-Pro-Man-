@@ -1,0 +1,20 @@
+import { Link } from "wouter";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { trpc } from "@/lib/trpc";
+import { ArrowLeft, CheckCircle2, CreditCard } from "lucide-react";
+
+export default function SubscriptionPage() {
+  const { user, loading } = useAuth();
+  const query = trpc.profile.subscription.useQuery(undefined, { enabled: Boolean(user) });
+  const utils = trpc.useUtils();
+  const checkout = trpc.profile.checkout.useMutation({ onSuccess: result => { if (result.checkoutUrl) window.location.assign(result.checkoutUrl); else void query.refetch(); } });
+  const cancel = trpc.profile.cancelSubscription.useMutation({ onSuccess: () => utils.profile.subscription.invalidate() });
+  if (loading) return <main className="grid min-h-screen place-items-center">Carregando…</main>;
+  if (!user) return <main className="grid min-h-screen place-items-center p-6"><div className="rounded-3xl border bg-white p-8 text-center"><h1 className="text-2xl font-semibold">Entre para ver sua assinatura</h1><Link href="/login" className="mt-4 inline-flex rounded-xl bg-emerald-950 px-4 py-3 font-semibold text-white">Entrar</Link></div></main>;
+  const info = query.data; const offer = info?.offer;
+  const price = offer ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: offer.currency }).format(Number(offer.amount)) : "R$ 33,99";
+  const status = info?.status ?? "Carregando…";
+  const canSubscribe = !info || ["none", "cancelled", "expired", "error"].includes(info.status);
+  const canCancel = Boolean(info && ["pending", "active", "payment_pending"].includes(info.status));
+  return <main className="min-h-screen bg-[#f6f8f6] px-4 py-8 sm:px-8"><div className="mx-auto max-w-3xl"><Link href="/dashboard" className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-900"><ArrowLeft size={16}/>Painel</Link><p className="mt-6 text-xs font-bold uppercase tracking-[.18em] text-emerald-800">Plano e pagamentos</p><h1 className="mt-1 text-3xl font-semibold">Assinatura Ritmo Pro</h1><section className="mt-7 rounded-3xl border bg-white p-7 shadow-sm sm:p-9"><div className="flex items-start justify-between gap-4"><div><span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-900"><CheckCircle2 size={14}/>{info?.premium ? "ATIVA" : String(status).toUpperCase()}</span><h2 className="mt-4 text-2xl font-semibold">{price}<span className="text-base font-normal text-slate-500"> / mês</span></h2><p className="mt-2 text-sm text-slate-600">Cobrança recorrente em BRL processada pelo Mercado Pago.</p></div><CreditCard className="text-emerald-900"/></div>{info?.currentPeriodEnd && <p className="mt-5 text-sm text-slate-600">Acesso válido até {new Date(info.currentPeriodEnd).toLocaleDateString("pt-BR")}</p>}{info?.lastPaymentStatus && <p className="mt-1 text-sm text-slate-600">Último pagamento: {info.lastPaymentStatus}</p>}<div className="mt-6 flex flex-wrap gap-3">{canSubscribe && <button disabled={checkout.isPending || query.isLoading} onClick={() => checkout.mutate()} className="rounded-xl bg-emerald-950 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{checkout.isPending ? "Abrindo checkout…" : "Assinar por " + price + "/mês"}</button>}{info && ["pending", "payment_pending"].includes(info.status) && <button disabled={checkout.isPending} onClick={() => checkout.mutate()} className="rounded-xl bg-emerald-950 px-5 py-3 text-sm font-semibold text-white">Continuar pagamento</button>}{canCancel && <button disabled={cancel.isPending} onClick={() => { if (window.confirm("Deseja cancelar sua assinatura?")) cancel.mutate(); }} className="rounded-xl border border-red-200 px-5 py-3 text-sm font-semibold text-red-700">{cancel.isPending ? "Cancelando…" : "Cancelar assinatura"}</button>}</div>{(checkout.error || cancel.error) && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-800">{checkout.error?.message || cancel.error?.message}</p>}<p className="mt-7 text-xs text-slate-500">Plano mensal de R$ 33,99. Cancelamento e cobrança seguem as condições apresentadas no checkout do Mercado Pago.</p></section></div></main>;
+}

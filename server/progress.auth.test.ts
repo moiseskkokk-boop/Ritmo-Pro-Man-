@@ -53,4 +53,15 @@ describe("progress procedures", () => {
     await expect(caller.progress.analyzeDay5({ from: "2026-09-28", to: "2026-10-04", weekStart: "2026-09-28", language: "pt" }))
       .rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
+
+  it("requires authentication to submit or read body analyses", async () => {
+    const caller = appRouter.createCaller(unauthenticatedContext());
+    await expect(caller.progress.bodyAnalysisHistory())
+      .rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    const photo = `data:image/jpeg;base64,${Buffer.alloc(20).toString("base64")}`;
+    await expect(caller.progress.analyzeBody({
+      language: "pt",
+      photos: { front: photo, back: photo, right: photo, left: photo },
+    })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
 });

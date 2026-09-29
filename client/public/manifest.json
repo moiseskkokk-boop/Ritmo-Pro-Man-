@@ -3,7 +3,7 @@
   "short_name": "Ritmo Pro Man",
   "description": "Treino 4x por semana para elevar sua performance e evoluir com constância.",
   "id": "/",
-  "start_url": "/",
+  "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#0b0d0c",
   "theme_color": "#0b0d0c",

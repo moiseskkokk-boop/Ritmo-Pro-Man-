@@ -17,6 +17,8 @@ describe("auth.me", () => {
     const user: AuthenticatedUser = {
       id: 7,
       openId: "ritmo-client-7",
+      passwordHash: "secret-hash-must-not-be-returned",
+      sessionVersion: 0,
       name: "João Silva",
       email: "joao@example.com",
       loginMethod: "email",
@@ -32,6 +34,8 @@ describe("auth.me", () => {
       name: "João Silva",
       email: "joao@example.com",
     });
+    expect(result).not.toHaveProperty("passwordHash");
+    expect(result).not.toHaveProperty("openId");
   });
 
   it("returns null when no session is present", async () => {

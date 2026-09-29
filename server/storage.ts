@@ -10,7 +10,14 @@ function headers() { const { key } = config(); return { Authorization: `Bearer $
 async function ensureBucket() {
   const { base, bucket } = config();
   const res = await fetch(`${base}/storage/v1/bucket`, { method:"POST", headers:{...headers(), "content-type":"application/json"}, body:JSON.stringify({ id:bucket, name:bucket, public:false, file_size_limit:10485760, allowed_mime_types:["image/*"] }) });
-  if (!res.ok && res.status !== 409) { const t=await res.text(); throw new Error(`Supabase bucket setup failed (${res.status}): ${t}`); }
+  if (res.status === 409) {
+    const existing = await fetch(`${base}/storage/v1/bucket/${encodeURIComponent(bucket)}`, { headers: headers() });
+    if (!existing.ok) throw new Error(`Supabase existing bucket could not be verified (${existing.status})`);
+    const details = await existing.json() as { public?: unknown };
+    if (details.public !== false) throw new Error("Supabase storage bucket must be private");
+    return;
+  }
+  if (!res.ok) { const t=await res.text(); throw new Error(`Supabase bucket setup failed (${res.status}): ${t}`); }
 }
 function appendHash(key:string) { const h=crypto.randomUUID().replace(/-/g,"").slice(0,8); const i=key.lastIndexOf("."); return i<0 ? `${key}_${h}` : `${key.slice(0,i)}_${h}${key.slice(i)}`; }
 export async function storagePut(relKey:string,data:Buffer|Uint8Array|string,contentType="application/octet-stream"):Promise<{key:string;url:string}> {
@@ -19,6 +26,11 @@ export async function storagePut(relKey:string,data:Buffer|Uint8Array|string,con
   if(!res.ok){const t=await res.text();throw new Error(`Supabase upload failed (${res.status}): ${t}`);} return {key,url:await storageGetSignedUrl(key)};
 }
 export async function storageGet(relKey:string){const key=normalizeKey(relKey);return {key,url:await storageGetSignedUrl(key)};}
+export async function storageRemove(relKey:string) {
+  const {base,bucket}=config(); const key=normalizeKey(relKey);
+  const res=await fetch(`${base}/storage/v1/object/${encodeURIComponent(bucket)}/${key.split("/").map(encodeURIComponent).join("/")}`,{method:"DELETE",headers:headers()});
+  if(!res.ok && res.status!==404){const t=await res.text();throw new Error(`Supabase delete failed (${res.status}): ${t}`);}
+}
 export async function storageGetSignedUrl(relKey:string){
   const {base,bucket}=config(); await ensureBucket(); const path=normalizeKey(relKey);
   const res=await fetch(`${base}/storage/v1/object/sign/${encodeURIComponent(bucket)}/${path.split("/").map(encodeURIComponent).join("/")}`,{method:"POST",headers:{...headers(),"content-type":"application/json"},body:JSON.stringify({expiresIn:3600})});
