@@ -42,7 +42,7 @@ services:
       - key: APP_TIME_ZONE
         value: Europe/Lisbon
       - key: WEARABLE_TOKEN_ENCRYPTION_KEY
-        sync: false
+        generateValue: true
       - key: GOOGLE_HEALTH_CLIENT_ID
         sync: false
       - key: GOOGLE_HEALTH_CLIENT_SECRET
@@ -59,14 +59,6 @@ services:
         sync: false
       - key: GARMIN_API_BASE_URL
         sync: false
-      - key: MERCADOPAGO_ACCESS_TOKEN
-        sync: false
-      - key: MERCADOPAGO_WEBHOOK_SECRET
-        sync: false
-      - key: MERCADOPAGO_PLAN_MONTHLY_PRICE
-        value: "33.99"
-      - key: MERCADOPAGO_CURRENCY
-        value: BRL
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: APPLE_SERVICE_ID
