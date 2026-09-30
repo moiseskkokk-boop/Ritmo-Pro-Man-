@@ -131,6 +131,11 @@ async function authRateAllowed(ctx: Pick<TrpcContext, "req">, scope: string, ide
   const ipAllowed = await consumeAuthRateLimit(ipRateKey, limit * 5, windowMs);
   return identityAllowed && ipAllowed;
 }
+async function authIpRateAllowed(ctx: Pick<TrpcContext, "req">, scope: string, limit: number, windowMs = 15 * 60_000) {
+  const ip = ctx.req.ip || ctx.req.socket?.remoteAddress || "unknown";
+  const ipRateKey = createHash("sha256").update(`${scope}\0ip\0${ip}`).digest("hex");
+  return consumeAuthRateLimit(ipRateKey, limit, windowMs);
+}
 async function deliverEmailAction(user: User, purpose: AuthTokenPurpose, kind: "verify_email" | "email_change" | "password_reset", targetEmail?: string) {
   if (!emailDeliveryConfigured()) return false;
   const { token, tokenHash } = await mintEmailToken(user, purpose, targetEmail);
@@ -222,11 +227,11 @@ export const appRouter = router({
     sessionStatus: publicProcedure.query(opts => ({ expired: Boolean(opts.ctx.sessionExpired) })),
     providers: publicProcedure.query(() => ({ googleClientId: ENV.googleClientId || null, appleServiceId: ENV.appleServiceId || null, emailConfigured: emailDeliveryConfigured() })),
     googleChallenge: publicProcedure.mutation(async ({ ctx }) => {
-      if (!await authRateAllowed(ctx, "google_challenge", "challenge", 30)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos." });
+      if (!await authIpRateAllowed(ctx, "google_challenge_v2", 30)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos." });
       return createLoginChallenge(ctx, "google");
     }),
     appleChallenge: publicProcedure.mutation(async ({ ctx }) => {
-      if (!await authRateAllowed(ctx, "apple_challenge", "challenge", 30)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos." });
+      if (!await authIpRateAllowed(ctx, "apple_challenge_v2", 30)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos." });
       return createLoginChallenge(ctx, "apple");
     }),
     register: publicProcedure.input(z.object({ name: z.string().trim().min(2).max(100), email: z.string().trim().email().max(320), password: strongPassword, acceptedTerms: z.literal(true) })).mutation(async ({ ctx, input }) => {
