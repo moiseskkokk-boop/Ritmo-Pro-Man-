@@ -227,7 +227,7 @@ export const appRouter = router({
     sessionStatus: publicProcedure.query(opts => ({ expired: Boolean(opts.ctx.sessionExpired) })),
     providers: publicProcedure.query(() => ({ googleClientId: ENV.googleClientId || null, appleServiceId: ENV.appleServiceId || null, emailConfigured: emailDeliveryConfigured() })),
     googleChallenge: publicProcedure.mutation(async ({ ctx }) => {
-      if (!await authIpRateAllowed(ctx, "google_challenge_v2", 30)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos." });
+      if (!await authIpRateAllowed(ctx, "google_challenge_v3", 30)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos." });
       return createLoginChallenge(ctx, "google");
     }),
     appleChallenge: publicProcedure.mutation(async ({ ctx }) => {
