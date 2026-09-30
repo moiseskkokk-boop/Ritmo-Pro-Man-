@@ -1372,6 +1372,7 @@ const deviceCopy = {
         "Aplicativo auxiliar Android; o relógio deve sincronizar com Health Connect",
     },
     syncMessage: "Nenhuma métrica foi importada sem autorização oficial.",
+    realActivity: "/ ATIVIDADE REAL", connectWatch: "Conectar smartwatch", officialOnly: "Importe somente atividades fornecidas pela plataforma oficial. O Ritmo Pro Man não cria calorias, passos, frequência cardíaca ou outras métricas que o dispositivo não enviar.", privateAccount: "Privado por conta", disconnect: "Desligar", manualDisclaimer: "Os ficheiros importados são identificados como importação manual e não provam uma ligação oficial à plataforma selecionada.", syncError: "Erro na sincronização", connectedUnsynced: "Conectado · ainda não sincronizado", disconnected: "Desconectado", nativeBridge: "Bridge nativo necessário", accountOnly: "Os dados ficam vinculados somente à sua conta.", syncedSources: "Fontes de dados sincronizados", activeCalories: "Calorias ativas", totalCalories: "Calorias totais", analyzeAI: "Analisar semana com IA", weeklyAnalysis: "Análise semanal", insufficient: "Dados insuficientes", weekHistory: "/ HISTÓRICO DA SEMANA", dailyActivity: "Atividade diária", activitySingular: "atividade(s)", manualImport: "importação manual", locale: "pt-BR",
   },
   en: {
     kicker: "/ DEVICES & REAL DATA",
@@ -1439,6 +1440,7 @@ const deviceCopy = {
         "Native Android companion app; the watch must sync to Health Connect",
     },
     syncMessage: "No metric was imported without official authorization.",
+    realActivity: "/ REAL ACTIVITY", connectWatch: "Connect smartwatch", officialOnly: "Import only activities supplied by the official platform. Ritmo Pro Man does not create calories, steps, heart rate, or other metrics the device does not send.", privateAccount: "Private by account", disconnect: "Disconnect", manualDisclaimer: "Imported files are identified as manual imports and do not prove an official connection to the selected platform.", syncError: "Sync error", connectedUnsynced: "Connected · not synced yet", disconnected: "Disconnected", nativeBridge: "Native bridge required", accountOnly: "Data remains linked only to your account.", syncedSources: "Synchronized data sources", activeCalories: "Active calories", totalCalories: "Total calories", analyzeAI: "Analyze week with AI", weeklyAnalysis: "Weekly analysis", insufficient: "Insufficient data", weekHistory: "/ WEEK HISTORY", dailyActivity: "Daily activity", activitySingular: "activity(ies)", manualImport: "manual import", locale: "en-US",
   },
   es: {
     kicker: "/ DISPOSITIVOS Y DATOS REALES",
@@ -1506,6 +1508,7 @@ const deviceCopy = {
         "App nativa Android; el reloj debe sincronizar con Health Connect",
     },
     syncMessage: "No se importó ninguna métrica sin autorización oficial.",
+    realActivity: "/ ACTIVIDAD REAL", connectWatch: "Conectar smartwatch", officialOnly: "Importa solo actividades proporcionadas por la plataforma oficial. Ritmo Pro Man no crea calorías, pasos, frecuencia cardíaca ni otras métricas que el dispositivo no envíe.", privateAccount: "Privado por cuenta", disconnect: "Desconectar", manualDisclaimer: "Los archivos importados se identifican como importación manual y no demuestran una conexión oficial con la plataforma seleccionada.", syncError: "Error de sincronización", connectedUnsynced: "Conectado · aún no sincronizado", disconnected: "Desconectado", nativeBridge: "Puente nativo necesario", accountOnly: "Los datos quedan vinculados solo a tu cuenta.", syncedSources: "Fuentes de datos sincronizados", activeCalories: "Calorías activas", totalCalories: "Calorías totales", analyzeAI: "Analizar semana con IA", weeklyAnalysis: "Análisis semanal", insufficient: "Datos insuficientes", weekHistory: "/ HISTORIAL DE LA SEMANA", dailyActivity: "Actividad diaria", activitySingular: "actividad(es)", manualImport: "importación manual", locale: "es-ES",
   },
 } as const;
 
@@ -2622,11 +2625,11 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
                   <div className="male-smartwatch-panel">
                     <div className="male-smartwatch-top">
                       <div>
-                        <span className="smartwatch-kicker">/ ATIVIDADE REAL</span>
-                        <h3><Watch size={22} /> Conectar smartwatch</h3>
-                        <p>Importe somente atividades fornecidas pela plataforma oficial. O Ritmo Pro Man não cria calorias, passos, frequência cardíaca ou outras métricas que o dispositivo não enviar.</p>
+                        <span className="smartwatch-kicker">{d.realActivity}</span>
+                        <h3><Watch size={22} /> {d.connectWatch}</h3>
+                        <p>{d.officialOnly}</p>
                       </div>
-                      <span className="smartwatch-privacy"><ShieldCheck size={14} /> Privado por conta</span>
+                      <span className="smartwatch-privacy"><ShieldCheck size={14} /> {d.privateAccount}</span>
                     </div>
 
                     <div className="smartwatch-link-grid">
@@ -2643,33 +2646,33 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
                       <button className="dark-btn smartwatch-sync" disabled={requestWearableSyncMutation.isPending} onClick={handleSyncClick}>
                         {activeSyncProvider === selectedProvider && requestWearableSyncMutation.isPending ? d.syncing : d.sync}
                       </button>
-                      {selectedConnection?.status === "connected" && <button className="outline-btn" disabled={disconnectWearableMutation.isPending} onClick={() => disconnectWearableMutation.mutate({ provider: selectedProvider })}>Desligar</button>}
+                      {selectedConnection?.status === "connected" && <button className="outline-btn" disabled={disconnectWearableMutation.isPending} onClick={() => disconnectWearableMutation.mutate({ provider: selectedProvider })}>{d.disconnect}</button>}
                       <button className="outline-btn smartwatch-import" disabled={isImporting} onClick={() => importInputRef.current?.click()}>
                         <FileUp size={16} /> {isImporting ? d.importing : d.importFile}
                       </button>
                       <input ref={importInputRef} className="visually-hidden" type="file" accept=".csv,.json,text/csv,application/json" onChange={importActivities} />
                     </div>
-                    <p className="smartwatch-disclaimer">Os ficheiros importados são identificados como importação manual e não provam uma ligação oficial à plataforma selecionada.</p>
+                    <p className="smartwatch-disclaimer">{d.manualDisclaimer}</p>
 
                     <div className="smartwatch-status-row">
                       <span className={`status-chip ${selectedConnection?.status === "connected" ? "ready" : ""}`}>
                         {selectedConnection?.status === "connected" ? <CheckCircle2 size={14} /> : <Clock3 size={14} />}
-                        {selectedConnection?.status === "connected" ? selectedConnection.lastSyncStatus === "error" ? "Erro na sincronização" : selectedConnection.lastSyncStatus === "syncing" ? d.syncing : selectedConnection.lastSyncStatus === "synced" ? d.synced : "Conectado · ainda não sincronizado" : selectedConnection?.status === "disconnected" ? "Desconectado" : selectedProvider === "apple_health" || selectedProvider === "health_connect" ? "Bridge nativo necessário" : d.authorization}
+                        {selectedConnection?.status === "connected" ? selectedConnection.lastSyncStatus === "error" ? d.syncError : selectedConnection.lastSyncStatus === "syncing" ? d.syncing : selectedConnection.lastSyncStatus === "synced" ? d.synced : d.connectedUnsynced : selectedConnection?.status === "disconnected" ? d.disconnected : selectedProvider === "apple_health" || selectedProvider === "health_connect" ? d.nativeBridge : d.authorization}
                       </span>
                       <strong>{d.providers[selectedProvider]}</strong>
-                      <small>{selectedConnection?.lastSyncError || (selectedConnection?.lastSyncedAt ? `${d.lastSync}: ${new Date(selectedConnection.lastSyncedAt).toLocaleString("pt-BR")}` : d.requirements[selectedProvider])}</small>
-                      <span>• Os dados ficam vinculados somente à sua conta.</span>
+                      <small>{selectedConnection?.lastSyncError || (selectedConnection?.lastSyncedAt ? `${d.lastSync}: ${new Date(selectedConnection.lastSyncedAt).toLocaleString(d.locale)}` : d.requirements[selectedProvider])}</small>
+                      <span>• {d.accountOnly}</span>
                     </div>
-                    {weeklyActivityAnalysis.data?.sources?.length ? <small className="smartwatch-source-list">Fontes de dados sincronizados: {weeklyActivityAnalysis.data.sources.map(source => d.providers[source as DeviceProvider] ?? source).join(", ")}</small> : null}
+                    {weeklyActivityAnalysis.data?.sources?.length ? <small className="smartwatch-source-list">{d.syncedSources}: {weeklyActivityAnalysis.data.sources.map(source => d.providers[source as DeviceProvider] ?? source).join(", ")}</small> : null}
 
                     {deviceNotice && <p className="smartwatch-notice" role="status" aria-live="polite">{deviceNotice}</p>}
 
                     <div className="smartwatch-metrics">
                       {[
                         { label: d.workouts, value: `${weeklyActivityAnalysis.data?.workoutsCompleted ?? 0}/4`, Icon: Activity },
-                        { label: "Calorias de treino", value: weeklyActivityAnalysis.data?.workoutCaloriesKcal != null ? `${weeklyActivityAnalysis.data.workoutCaloriesKcal} kcal` : d.noValue, Icon: Activity },
-                        { label: "Calorias ativas", value: weeklyActivityAnalysis.data?.activityCaloriesKcal != null ? `${weeklyActivityAnalysis.data.activityCaloriesKcal} kcal` : d.noValue, Icon: Activity },
-                        { label: "Calorias totais", value: weeklyActivityAnalysis.data?.totalCaloriesKcal != null ? `${weeklyActivityAnalysis.data.totalCaloriesKcal} kcal` : d.noValue, Icon: Activity },
+                        { label: d.calories, value: weeklyActivityAnalysis.data?.workoutCaloriesKcal != null ? `${weeklyActivityAnalysis.data.workoutCaloriesKcal} kcal` : d.noValue, Icon: Activity },
+                        { label: d.activeCalories, value: weeklyActivityAnalysis.data?.activityCaloriesKcal != null ? `${weeklyActivityAnalysis.data.activityCaloriesKcal} kcal` : d.noValue, Icon: Activity },
+                        { label: d.totalCalories, value: weeklyActivityAnalysis.data?.totalCaloriesKcal != null ? `${weeklyActivityAnalysis.data.totalCaloriesKcal} kcal` : d.noValue, Icon: Activity },
                         { label: d.duration, value: weeklyActivityAnalysis.data?.durationMinutes != null ? `${weeklyActivityAnalysis.data.durationMinutes} min` : d.noValue, Icon: Clock3 },
                         { label: d.heartRate, value: weeklyActivityAnalysis.data?.averageHeartRate != null ? `${weeklyActivityAnalysis.data.averageHeartRate} bpm` : d.noValue, Icon: HeartPulse },
                       ].map(({ label, value, Icon: MetricIcon }) => (
@@ -2682,16 +2685,16 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
                     </div>
 
                     <button className="outline-btn" disabled={analyzeWeeklyWearableMutation.isPending} onClick={handleWeeklyWearableAnalysis}>
-                      <Sparkles size={16} /> {analyzeWeeklyWearableMutation.isPending ? d.syncing : "Analisar semana com IA"}
+                      <Sparkles size={16} /> {analyzeWeeklyWearableMutation.isPending ? d.syncing : d.analyzeAI}
                     </button>
                     {weeklyWearableInsight && <div className="smartwatch-notice" role="status">
-                      <strong>{weeklyWearableInsight.sufficient ? "Análise semanal" : "Dados insuficientes"}</strong>
+                      <strong>{weeklyWearableInsight.sufficient ? d.weeklyAnalysis : d.insufficient}</strong>
                       <p>{weeklyWearableInsight.summary}</p>
                       {weeklyWearableInsight.recommendations.map((recommendation, index) => <p key={`${index}-${recommendation}`}>• {recommendation}</p>)}
                     </div>}
 
                     <div className="smartwatch-history-heading">
-                      <div><span className="smartwatch-kicker">/ HISTÓRICO DA SEMANA</span><h4>Atividade diária</h4></div>
+                      <div><span className="smartwatch-kicker">{d.weekHistory}</span><h4>{d.dailyActivity}</h4></div>
                       <RefreshCw size={15} className={weeklyActivityAnalysis.isFetching ? "animate-spin" : ""} />
                     </div>
                     {wearableActivities.data?.length || weeklyActivityAnalysis.data?.dailySummaries?.length ? (
@@ -2704,8 +2707,8 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
                           const steps = dailySummary?.steps ?? (dayActivities.some(item => item.steps != null) ? dayActivities.reduce((sum, item) => sum + (item.steps ?? 0), 0) : null);
                           const manual = dayActivities.some(item => item.sourceType === "manual_import");
                           return <div key={date} className="smartwatch-day-card">
-                            <span>{new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" })}</span>
-                            <p>{dailySummary?.activityCount ?? dayActivities.length} atividade(s){manual ? " · importação manual" : ""}</p>
+                            <span>{new Date(`${date}T12:00:00`).toLocaleDateString(d.locale, { weekday: "short", day: "2-digit", month: "2-digit" })}</span>
+                            <p>{dailySummary?.activityCount ?? dayActivities.length} {d.activitySingular}{manual ? " · " + d.manualImport : ""}</p>
                             <small>{calories != null ? `${calories} kcal` : d.noValue} · {steps != null ? `${steps} ${d.steps.toLowerCase()}` : d.noValue}</small>
                           </div>;
                         })}
