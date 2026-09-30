@@ -40,13 +40,12 @@ export default function Login() {
   const [resetToken] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get("reset") ?? new URLSearchParams(window.location.search).get("reset") ?? new URLSearchParams(window.location.search).get("token") ?? "");
   const [notice, setNotice] = useState(() => new URLSearchParams(window.location.search).get("passwordChanged") === "1" ? "Senha alterada com sucesso. Entre com sua nova senha." : new URLSearchParams(window.location.search).get("expired") === "1" ? "Sua sessão expirou. Entre novamente para continuar." : "");
   const [providerError, setProviderError] = useState("");
-  const [googleAttempt, setGoogleAttempt] = useState(0);
   const providers = trpc.auth.providers.useQuery();
   const utils = trpc.useUtils();
   const finishSignIn = async () => { await Promise.all([utils.auth.me.invalidate(), utils.auth.sessionStatus.invalidate()]); const next = new URLSearchParams(window.location.search).get("next"); setLocation(next?.startsWith("/") && !next.startsWith("//") ? next : "/dashboard"); };
   const login = trpc.auth.login.useMutation({ onSuccess: finishSignIn });
   const signup = trpc.auth.register.useMutation({ onSuccess: () => { setPassword(""); setConfirmPassword(""); sessionStorage.setItem("ritmo-auth-email", email.trim().toLowerCase()); setLocation("/confirm-email"); } });
-  const googleSignIn = trpc.auth.googleSignIn.useMutation({ onSuccess: finishSignIn, onError: () => { googleChallengePromiseRef.current = null; setGoogleAttempt(value => value + 1); } });
+  const googleSignIn = trpc.auth.googleSignIn.useMutation({ onSuccess: finishSignIn });
   const appleSignIn = trpc.auth.appleSignIn.useMutation({ onSuccess: finishSignIn });
   const googleChallenge = trpc.auth.googleChallenge.useMutation();
   const appleChallenge = trpc.auth.appleChallenge.useMutation();
@@ -66,9 +65,10 @@ export default function Login() {
     }
   }, [resetToken]);
 
+  // Request a challenge only after explicit user intent so page loads do not consume the OAuth rate-limit budget.
   useEffect(() => {
     const clientId = providers.data?.googleClientId;
-    if (!clientId || !googleButton.current) return;
+    if (!clientId || !googleButton.current || !acceptedTerms) return;
     let cancelled = false;
     googleChallengePromiseRef.current ??= googleChallenge.mutateAsync().catch(error => { googleChallengePromiseRef.current = null; throw error; });
     void googleChallengePromiseRef.current.then(challenge => loadScript("https://accounts.google.com/gsi/client").then(() => challenge)).then(challenge => {
@@ -79,9 +79,13 @@ export default function Login() {
       } });
       googleButton.current.replaceChildren();
       window.google.accounts.id.renderButton(googleButton.current, { theme: "outline", size: "large", shape: "pill", text: "continue_with", width: 360 });
-    }).catch(() => setProviderError("Login com Google indisponível no momento."));
+    }).catch(error => {
+      googleChallengePromiseRef.current = null;
+      const message = error && typeof error === "object" && "message" in error ? String(error.message) : "Login com Google indisponível no momento.";
+      setProviderError(message);
+    });
     return () => { cancelled = true; };
-  }, [providers.data?.googleClientId, googleAttempt]);
+  }, [providers.data?.googleClientId, acceptedTerms]);
 
   useEffect(() => {
     if (!providers.data?.appleServiceId) return;
@@ -149,7 +153,7 @@ export default function Login() {
           {mode === "reset" && resetPassword.error && <button type="button" onClick={() => { setMode("forgot"); setNotice("Solicite um novo link para continuar."); setPassword(""); setConfirmPassword(""); }} className="w-full text-sm font-semibold text-emerald-900 underline">Solicitar outro link</button>}
           <button disabled={pending} className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-950 px-4 py-3.5 font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-wait disabled:opacity-60">{pending && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />}{pending ? "Aguarde…" : mode === "register" ? "Criar conta" : mode === "forgot" ? "Enviar link de recuperação" : mode === "reset" ? "Salvar nova senha" : "Entrar"}</button>
         </form>
-        {(providers.data?.googleClientId || providers.data?.appleServiceId) && <div className={mode === "login" ? "" : "hidden"}><div className="my-6 flex items-center gap-3 text-xs text-slate-400"><span className="h-px flex-1 bg-slate-200" />ou continue com<span className="h-px flex-1 bg-slate-200" /></div><div className="space-y-3"><label className="flex items-start gap-2 text-xs leading-5 text-slate-600"><input type="checkbox" checked={acceptedTerms} onChange={e => setAcceptedTerms(e.target.checked)} className="mt-1 accent-emerald-800"/><span>Para criar uma conta com Google ou Apple, aceito os <a className="font-semibold text-emerald-900 underline" href="/termos" target="_blank" rel="noreferrer">Termos de Uso</a> e a <a className="font-semibold text-emerald-900 underline" href="/privacidade" target="_blank" rel="noreferrer">Política de Privacidade</a>.</span></label>{providers.data?.googleClientId && <div ref={googleButton} className="flex min-h-11 justify-center" />}{providers.data?.appleServiceId && <button type="button" onClick={signInApple} disabled={pending} className="w-full rounded-full border border-slate-300 px-4 py-3 text-sm font-semibold hover:bg-slate-50 disabled:opacity-60">Continuar com Apple</button>}</div></div>}
+        {(providers.data?.googleClientId || providers.data?.appleServiceId) && <div className={mode === "login" ? "" : "hidden"}><div className="my-6 flex items-center gap-3 text-xs text-slate-400"><span className="h-px flex-1 bg-slate-200" />ou continue com<span className="h-px flex-1 bg-slate-200" /></div><div className="space-y-3"><label className="flex items-start gap-2 text-xs leading-5 text-slate-600"><input type="checkbox" checked={acceptedTerms} onChange={e => { googleChallengePromiseRef.current = null; setAcceptedTerms(e.target.checked); setProviderError(""); }} className="mt-1 accent-emerald-800"/><span>Para criar uma conta com Google ou Apple, aceito os <a className="font-semibold text-emerald-900 underline" href="/termos" target="_blank" rel="noreferrer">Termos de Uso</a> e a <a className="font-semibold text-emerald-900 underline" href="/privacidade" target="_blank" rel="noreferrer">Política de Privacidade</a>.</span></label>{providers.data?.googleClientId && (acceptedTerms ? <div ref={googleButton} className="flex min-h-11 justify-center" /> : <p className="text-center text-xs text-slate-500">Aceite os termos acima para habilitar o login com Google.</p>)}{providers.data?.appleServiceId && <button type="button" onClick={signInApple} disabled={pending} className="w-full rounded-full border border-slate-300 px-4 py-3 text-sm font-semibold hover:bg-slate-50 disabled:opacity-60">Continuar com Apple</button>}</div></div>}
         <div className="mt-6 text-center text-sm text-slate-600">{mode === "register" ? "Já tem uma conta?" : mode === "login" ? "Ainda não tem conta?" : "Lembrou?"} <button type="button" className="font-bold text-emerald-900 hover:underline" onClick={() => { login.reset(); signup.reset(); requestReset.reset(); resetPassword.reset(); setNotice(""); setProviderError(""); setMode(mode === "register" || mode === "forgot" || mode === "reset" ? "login" : "register"); }}>{mode === "register" || mode === "forgot" || mode === "reset" ? "Entrar" : "Criar conta"}</button></div>
         <p className="mt-6 text-center text-xs text-slate-400"><a href="/termos" className="hover:underline">Termos de Uso</a><span className="px-2">·</span><a href="/privacidade" className="hover:underline">Privacidade</a></p>
       </section>
