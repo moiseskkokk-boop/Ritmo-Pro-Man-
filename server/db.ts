@@ -1,6 +1,6 @@
-import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gt, gte, isNull, lte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { BodyAnalysis, InsertUser, bodyAnalyses, dailyLogs, mercadoPagoWebhookEvents, subscriptionPayments, subscriptionPlans, userSubscriptions, users, wearableActivities, wearableConnections, wearableOauthStates, wearableDailySummaries, weeklyAssessments, workoutPlans } from "../drizzle/schema";
+import { BodyAnalysis, InsertUser, authEmailTokens, authRateLimits, bodyAnalyses, dailyLogs, mercadoPagoWebhookEvents, subscriptionPayments, subscriptionPlans, userSubscriptions, users, wearableActivities, wearableConnections, wearableOauthStates, wearableDailySummaries, weeklyAssessments, workoutPlans, trainingSessions } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { canClaimWebhookEvent } from "./mercadopago";
 import { mysqlConnectionOptions } from "./_core/mysql-connection";
@@ -12,8 +12,8 @@ export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
       _db = drizzle({ connection: mysqlConnectionOptions(process.env.DATABASE_URL) });
-    } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
+    } catch {
+      console.warn("[Database] Connection configuration unavailable");
       _db = null;
     }
   }
@@ -93,14 +93,14 @@ export async function getUserByEmail(email: string) {
   return result[0];
 }
 
-export async function createLocalUser(input: { name: string; email: string; passwordHash: string; openId: string; termsAcceptedAt: Date; privacyAcceptedAt: Date }) {
+export async function createLocalUser(input: { name: string; email: string; passwordHash: string; openId: string; termsAcceptedAt: Date; privacyAcceptedAt: Date; termsAcceptedVersion: string; privacyAcceptedVersion: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   await db.insert(users).values({ ...input, loginMethod: "password", lastSignedIn: new Date() });
   return getUserByEmail(input.email);
 }
 
-export async function createOAuthUser(input: { name: string; email: string; provider: "google" | "apple"; providerId: string; termsAcceptedAt: Date; privacyAcceptedAt: Date }) {
+export async function createOAuthUser(input: { name: string; email: string; provider: "google" | "apple"; providerId: string; termsAcceptedAt: Date; privacyAcceptedAt: Date; termsAcceptedVersion: string; privacyAcceptedVersion: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   await db.insert(users).values({
@@ -111,9 +111,91 @@ export async function createOAuthUser(input: { name: string; email: string; prov
     loginMethod: input.provider,
     termsAcceptedAt: input.termsAcceptedAt,
     privacyAcceptedAt: input.privacyAcceptedAt,
+    termsAcceptedVersion: input.termsAcceptedVersion,
+    privacyAcceptedVersion: input.privacyAcceptedVersion,
+    emailVerifiedAt: new Date(),
     lastSignedIn: new Date(),
   });
   return getUserByEmail(input.email);
+}
+
+export async function issueAuthEmailToken(input: { tokenHash: string; userId: number; purpose: "verify_email" | "password_reset" | "email_change"; targetEmail?: string | null; expectedSessionVersion: number; expiresAt: Date }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const now = new Date();
+  await db.delete(authEmailTokens).where(lte(authEmailTokens.expiresAt, now));
+  await db.transaction(async tx => {
+    // Serialize issuance with credential changes and simultaneous resends.
+    const [owner] = await tx.select().from(users).where(eq(users.id, input.userId)).for("update");
+    const address = input.purpose === "email_change" ? owner?.pendingEmail : owner?.email;
+    if (!owner || owner.sessionVersion !== input.expectedSessionVersion || !address || address !== input.targetEmail) throw new Error("Authentication action superseded");
+    await tx.update(authEmailTokens).set({ consumedAt: now }).where(and(eq(authEmailTokens.userId, input.userId), eq(authEmailTokens.purpose, input.purpose), isNull(authEmailTokens.consumedAt)));
+    const { expectedSessionVersion: _, ...token } = input;
+    await tx.insert(authEmailTokens).values({ ...token, targetEmail: address });
+  });
+}
+
+export async function consumeAuthEmailToken(tokenHash: string, purpose: "verify_email" | "password_reset" | "email_change") {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const now = new Date();
+  const rows = await db.select({ token: authEmailTokens, sessionVersion: users.sessionVersion }).from(authEmailTokens).innerJoin(users, eq(users.id, authEmailTokens.userId)).where(and(eq(authEmailTokens.tokenHash, tokenHash), eq(authEmailTokens.purpose, purpose), isNull(authEmailTokens.consumedAt), gt(authEmailTokens.expiresAt, now))).limit(1);
+  const row = rows[0]?.token;
+  if (!row) return undefined;
+  const result = await db.update(authEmailTokens).set({ consumedAt: now }).where(and(eq(authEmailTokens.tokenHash, tokenHash), eq(authEmailTokens.purpose, purpose), isNull(authEmailTokens.consumedAt), gt(authEmailTokens.expiresAt, now)));
+  const affectedRows = (result as unknown as [{ affectedRows?: number }])[0]?.affectedRows;
+  return affectedRows === 1 ? { ...row, sessionVersion: rows[0].sessionVersion } : undefined;
+}
+
+export async function consumeAuthRateLimit(rateKey: string, limit: number, windowMs: number) {
+  const db = await getDb();
+  if (!db) return false;
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - windowMs);
+  await db.delete(authRateLimits).where(lte(authRateLimits.windowStartedAt, new Date(now.getTime() - 48 * 60 * 60_000)));
+  await db.insert(authRateLimits).values({ rateKey, windowStartedAt: now, attempts: 1 }).onDuplicateKeyUpdate({ set: {
+    attempts: sql`IF(${authRateLimits.windowStartedAt} <= ${cutoff}, 1, ${authRateLimits.attempts} + 1)`,
+    windowStartedAt: sql`IF(${authRateLimits.windowStartedAt} <= ${cutoff}, ${now}, ${authRateLimits.windowStartedAt})`,
+  } });
+  const rows = await db.select({ attempts: authRateLimits.attempts }).from(authRateLimits).where(eq(authRateLimits.rateKey, rateKey)).limit(1);
+  return Boolean(rows[0] && rows[0].attempts <= limit);
+}
+
+export async function markEmailVerified(userId: number, email: string, expectedSessionVersion: number, federated = false) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const changed = await db.transaction(async tx => {
+    const [owner] = await tx.select().from(users).where(eq(users.id, userId)).for("update");
+    if (!owner || owner.email !== email || owner.sessionVersion !== expectedSessionVersion) return false;
+    // Provider proof must not activate a password planted on an unverified account.
+    const clearUnverifiedPassword = federated && !owner.emailVerifiedAt;
+    await tx.update(users).set({ emailVerifiedAt: new Date(), updatedAt: new Date(), ...(clearUnverifiedPassword ? { passwordHash: null, pendingEmail: null, sessionVersion: sql`${users.sessionVersion} + 1` } : {}) }).where(eq(users.id, userId));
+    if (clearUnverifiedPassword) await tx.update(authEmailTokens).set({ consumedAt: new Date() }).where(and(eq(authEmailTokens.userId, userId), isNull(authEmailTokens.consumedAt)));
+    return true;
+  });
+  if (!changed) return undefined;
+  return getUserById(userId);
+}
+
+export async function updateUserEmail(userId: number, email: string, expectedSessionVersion: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const changed = await db.transaction(async tx => {
+    const [owner] = await tx.select().from(users).where(eq(users.id, userId)).for("update");
+    if (!owner || owner.pendingEmail !== email || owner.sessionVersion !== expectedSessionVersion) return false;
+    await tx.update(users).set({ email, pendingEmail: null, emailVerifiedAt: new Date(), sessionVersion: sql`${users.sessionVersion} + 1`, updatedAt: new Date() }).where(eq(users.id, userId));
+    await tx.update(authEmailTokens).set({ consumedAt: new Date() }).where(and(eq(authEmailTokens.userId, userId), isNull(authEmailTokens.consumedAt)));
+    return true;
+  });
+  if (!changed) return undefined;
+  return getUserById(userId);
+}
+
+export async function setPendingUserEmail(userId: number, email: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.update(users).set({ pendingEmail: email, updatedAt: new Date() }).where(eq(users.id, userId));
+  return getUserById(userId);
 }
 
 export async function updateUserName(userId: number, name: string) {
@@ -123,10 +205,16 @@ export async function updateUserName(userId: number, name: string) {
   return getUserById(userId);
 }
 
-export async function updateUserPassword(userId: number, passwordHash: string) {
+export async function updateUserPassword(userId: number, passwordHash: string, expectedSessionVersion: number) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  await db.update(users).set({ passwordHash, sessionVersion: sql`${users.sessionVersion} + 1`, updatedAt: new Date() }).where(eq(users.id, userId));
+  const changed = await db.transaction(async tx => {
+    const result = await tx.update(users).set({ passwordHash, pendingEmail: null, sessionVersion: sql`${users.sessionVersion} + 1`, updatedAt: new Date() }).where(and(eq(users.id, userId), eq(users.sessionVersion, expectedSessionVersion)));
+    if (result[0].affectedRows !== 1) return false;
+    await tx.update(authEmailTokens).set({ consumedAt: new Date() }).where(and(eq(authEmailTokens.userId, userId), isNull(authEmailTokens.consumedAt)));
+    return true;
+  });
+  if (!changed) return undefined;
   return getUserById(userId);
 }
 
@@ -364,6 +452,7 @@ export async function deleteAllUserData(userId: number) {
   await db.delete(weeklyAssessments).where(eq(weeklyAssessments.userId, userId));
   await db.delete(subscriptionPayments).where(eq(subscriptionPayments.userId, userId));
   await db.delete(userSubscriptions).where(eq(userSubscriptions.userId, userId));
+  await db.delete(authEmailTokens).where(eq(authEmailTokens.userId, userId));
   await db.delete(users).where(eq(users.id, userId));
   return { success: true as const };
 }
@@ -575,6 +664,11 @@ export async function ingestWearableActivity(input: {
   return rows[0];
 }
 
+async function getCompletedTrainingDates(userId: number, from: string, to: string) {
+  const db = await getDb(); if (!db) return [];
+  return db.select({ activityDate: trainingSessions.activityDate }).from(trainingSessions).where(and(eq(trainingSessions.userId,userId),eq(trainingSessions.status,"completed"),gte(trainingSessions.activityDate,from),lte(trainingSessions.activityDate,to)));
+}
+
 export async function getWeeklyActivityAnalysis(userId: number, from: string, to: string, weekStart: string) {
   const previousStartDate = new Date(`${weekStart}T00:00:00Z`); previousStartDate.setUTCDate(previousStartDate.getUTCDate() - 7);
   const previousStart = previousStartDate.toISOString().slice(0, 10);
@@ -584,7 +678,7 @@ export async function getWeeklyActivityAnalysis(userId: number, from: string, to
   const previousEndDate = new Date(`${weekStart}T00:00:00Z`);
   previousEndDate.setUTCDate(previousEndDate.getUTCDate() + (to > today ? elapsedDays - 8 : -1));
   const previousEnd = previousEndDate.toISOString().slice(0, 10);
-  const [allActivities, allSummaries, logs, assessment, assessmentHistory, allPreviousActivities, allPreviousSummaries, previousLogs] = await Promise.all([
+  const [allActivities, allSummaries, logs, assessment, assessmentHistory, allPreviousActivities, allPreviousSummaries, previousLogs, sessions, previousSessions] = await Promise.all([
     getWearableActivities(userId, from, to),
     getWearableDailySummaries(userId, from, to),
     getDailyHistory(userId, from, to),
@@ -593,6 +687,8 @@ export async function getWeeklyActivityAnalysis(userId: number, from: string, to
     getWearableActivities(userId, previousStart, previousEnd),
     getWearableDailySummaries(userId, previousStart, previousEnd),
     getDailyHistory(userId, previousStart, previousEnd),
+    getCompletedTrainingDates(userId, from, effectiveEnd),
+    getCompletedTrainingDates(userId, previousStart, previousEnd),
   ]);
   const collapseDailySummaries = (rows: Awaited<ReturnType<typeof getWearableDailySummaries>>) => {
     const grouped = new Map<string, typeof rows>();
@@ -630,7 +726,7 @@ export async function getWeeklyActivityAnalysis(userId: number, from: string, to
   const heartRates = providerActivities.map(row => row.averageHeartRate).filter((value): value is number => typeof value === "number");
   const maxHeartRates = providerActivities.map(row => row.maxHeartRate).filter((value): value is number => typeof value === "number");
   const distances = providerActivities.map(row => row.distanceKm == null ? null : Number(row.distanceKm)).filter((value): value is number => Number.isFinite(value));
-  const workoutDates = new Set(logs.filter(log => log.workoutId).map(log => log.activityDate));
+  const workoutDates = new Set([...logs.filter(log => log.workoutId && log.completedCount > 0).map(log => log.activityDate), ...sessions.map(row => row.activityDate)]);
   const activityDays = new Set(providerActivities.map(row => row.activityDate));
   const activityTypes = Array.from(new Set(providerActivities.map(row => row.activityType).filter((value): value is string => Boolean(value))));
   const recovery = assessment?.recovery ?? logs.find(log => log.recovery)?.recovery ?? null;
@@ -646,7 +742,7 @@ export async function getWeeklyActivityAnalysis(userId: number, from: string, to
   const activeCalories = sumSummary("activityCaloriesKcal");
   const totalCalories = sumSummary("totalCaloriesKcal");
   const previousProviderActivities = previousActivities;
-  const previousWorkoutDates = new Set(previousLogs.filter(log => log.workoutId).map(log => log.activityDate));
+  const previousWorkoutDates = new Set([...previousLogs.filter(log => log.workoutId && log.completedCount > 0).map(log => log.activityDate), ...previousSessions.map(row => row.activityDate)]);
   const previousSummaryTotal = (field: "workoutCaloriesKcal" | "activityCaloriesKcal" | "totalCaloriesKcal" | "durationMinutes" | "steps" | "sleepMinutes") => {
     const values = previousSummaries.map(row => row[field]).filter((value): value is number => typeof value === "number");
     return values.length ? values.reduce((a, b) => a + b, 0) : null;
@@ -669,7 +765,7 @@ export async function getWeeklyActivityAnalysis(userId: number, from: string, to
     consistency: { workoutDays: workoutDates.size, workoutTarget: 4, wearableActivityDays: Math.max(activityDays.size, summaries.length) },
     evolution: { comparison: to > today ? "current week to date versus the same weekdays in the previous calendar week" : "current calendar week versus previous calendar week", previousWeek: { from: previousStart, to: previousEnd, workoutsCompleted: previousWorkoutDates.size, activityDays: Math.max(previousActivityDays.size, previousSummaries.length), workoutCaloriesKcal: previousWorkoutCalories, durationMinutes: previousDuration, steps: previousSteps, sleepMinutes: previousSummaryTotal("sleepMinutes"), totalCaloriesKcal: previousSummaryTotal("totalCaloriesKcal") }, change: { workoutsCompleted: delta(workoutDates.size, previousWorkoutDates.size), activityDays: delta(Math.max(activityDays.size, summaries.length), Math.max(previousActivityDays.size, previousSummaries.length)), workoutCaloriesKcal: delta(workoutsCalories, previousWorkoutCalories), durationMinutes: delta(sumSummary("durationMinutes"), previousDuration), steps: delta(sumSummary("steps"), previousSteps) } },
     sources: Array.from(new Set([...allSummaries.map(row => row.provider), ...allActivities.filter(row => row.sourceType === "provider_api").map(row => row.provider)])),
-    dataAvailable: providerActivities.length > 0 || summaries.length > 0 || logs.length > 0, wearableDataAvailable: summaries.length > 0 || providerActivities.length > 0,
+    dataAvailable: providerActivities.length > 0 || summaries.length > 0 || logs.length > 0 || sessions.length > 0, wearableDataAvailable: summaries.length > 0 || providerActivities.length > 0,
     metricsSufficient: summaries.length >= 3 || providerActivities.length >= 3, dailySummaries: summaries.map(s => ({ date: s.activityDate, activityCount: s.activityCount, workoutCaloriesKcal: s.workoutCaloriesKcal, activityCaloriesKcal: s.activityCaloriesKcal, totalCaloriesKcal: s.totalCaloriesKcal, steps: s.steps, sleepMinutes: s.sleepMinutes, durationMinutes: s.durationMinutes, distanceKm: s.distanceKm, averageHeartRate: s.averageHeartRate, recoveryScore: s.recoveryScore })),
   };
 }

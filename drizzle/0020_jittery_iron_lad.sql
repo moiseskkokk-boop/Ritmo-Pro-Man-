@@ -1,0 +1,1 @@
+ALTER TABLE `training_sets` ADD `voidedAt` timestamp;

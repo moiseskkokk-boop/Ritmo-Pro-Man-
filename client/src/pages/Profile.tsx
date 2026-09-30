@@ -33,12 +33,14 @@ export default function Profile() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [profileName, setProfileName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const galleryRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const utils = trpc.useUtils();
+  const authProviders = trpc.auth.providers.useQuery();
   const subscriptionQuery = trpc.profile.subscription.useQuery(undefined, { enabled: Boolean(user) });
   const updateNameMutation = trpc.profile.updateName.useMutation({
     onSuccess: async () => { setError(""); setNotice("Nome atualizado."); await utils.auth.me.invalidate(); },
@@ -46,6 +48,10 @@ export default function Profile() {
   });
   const changePasswordMutation = trpc.profile.changePassword.useMutation({
     onSuccess: () => { window.location.assign("/login?passwordChanged=1"); },
+    onError: err => setError(err.message),
+  });
+  const changeEmailMutation = trpc.profile.changeEmail.useMutation({
+    onSuccess: () => { setNewEmail(""); setCurrentPassword(""); setError(""); setNotice(authProviders.data?.emailConfigured === false ? "O serviço de e-mail está temporariamente indisponível. Tente novamente mais tarde." : "Se o endereço puder ser atualizado, enviaremos um link de confirmação. O e-mail atual só muda após a confirmação."); },
     onError: err => setError(err.message),
   });
   const checkoutMutation = trpc.profile.checkout.useMutation({ onSuccess: result => { if (result.checkoutUrl) window.location.assign(result.checkoutUrl); else void subscriptionQuery.refetch(); }, onError: err => setError(err.message || copy[language].subscriptionError) });
@@ -138,11 +144,17 @@ export default function Profile() {
               <label className="text-sm font-medium">Editar nome<input required minLength={2} maxLength={100} value={profileName} onChange={event => setProfileName(event.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5"/></label>
               <button disabled={updateNameMutation.isPending || profileName.trim() === user.name} className="self-end rounded-xl bg-emerald-950 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{updateNameMutation.isPending ? "Salvando…" : "Salvar nome"}</button>
             </form>
+            <form className="mt-5 grid gap-3 border-t border-slate-200 pt-5 sm:grid-cols-2" onSubmit={event => { event.preventDefault(); changeEmailMutation.mutate({ email: newEmail, currentPassword: user.hasPassword ? currentPassword : undefined }); }}>
+              <div className="sm:col-span-2"><div className="card-kicker">Alterar e-mail</div><p className="mt-1 text-sm text-slate-500">Enviaremos uma confirmação ao novo endereço. O endereço atual continua ativo até a confirmação.</p></div>
+              <label className="text-sm font-medium">Novo e-mail<input required type="email" autoComplete="email" maxLength={320} value={newEmail} onChange={event => setNewEmail(event.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5"/></label>
+              {user.hasPassword && <label className="text-sm font-medium">Senha atual<input required type="password" autoComplete="current-password" value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5"/></label>}
+              <button disabled={changeEmailMutation.isPending} className="self-end rounded-xl bg-emerald-950 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{changeEmailMutation.isPending ? "Enviando…" : "Enviar confirmação"}</button>
+            </form>
             <form className="mt-5 grid gap-3 border-t border-slate-200 pt-5 sm:grid-cols-2" onSubmit={event => { event.preventDefault(); if (newPassword !== confirmNewPassword) { setError("As senhas novas não coincidem."); return; } changePasswordMutation.mutate({ currentPassword: user.hasPassword ? currentPassword : undefined, newPassword }); }}>
               <div className="sm:col-span-2"><div className="card-kicker">Alterar senha</div><p className="mt-1 text-sm text-slate-500">Por segurança, você precisará entrar novamente após a alteração.</p></div>
               {user.hasPassword && <label className="text-sm font-medium">Senha atual<input required type="password" autoComplete="current-password" value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5"/></label>}
-              <label className="text-sm font-medium">Nova senha<input required type="password" minLength={8} maxLength={128} autoComplete="new-password" value={newPassword} onChange={event => setNewPassword(event.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5"/></label>
-              <label className="text-sm font-medium">Confirmar nova senha<input required type="password" minLength={8} maxLength={128} autoComplete="new-password" value={confirmNewPassword} onChange={event => setConfirmNewPassword(event.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5"/></label>
+              <label className="text-sm font-medium">Nova senha<input required type="password" minLength={10} maxLength={128} autoComplete="new-password" value={newPassword} onChange={event => setNewPassword(event.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5"/><small className="mt-1 block text-slate-500">10+ caracteres, maiúscula, minúscula e número.</small></label>
+              <label className="text-sm font-medium">Confirmar nova senha<input required type="password" minLength={10} maxLength={128} autoComplete="new-password" value={confirmNewPassword} onChange={event => setConfirmNewPassword(event.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5"/></label>
               <button disabled={changePasswordMutation.isPending} className="self-end rounded-xl bg-emerald-950 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{changePasswordMutation.isPending ? "Atualizando…" : "Atualizar senha"}</button>
             </form>
           </div>

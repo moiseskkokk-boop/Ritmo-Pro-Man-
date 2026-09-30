@@ -113,6 +113,41 @@
       "when": 1790711985245,
       "tag": "0015_nebulous_slayback",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "5",
+      "when": 1790714831216,
+      "tag": "0016_auth_email_verification_tokens_rate_limits",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1790716424146,
+      "tag": "0017_auth_rate_limit_retention_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1790716534212,
+      "tag": "0018_auth_email_token_retention_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1790720751522,
+      "tag": "0019_nosy_omega_flight",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1790742105583,
+      "tag": "0020_jittery_iron_lad",
+      "breakpoints": true
     }
   ]
 }

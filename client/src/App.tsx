@@ -1,47 +1,67 @@
+import { lazy, Suspense } from "react";
+const Fitness = lazy(() => import("./pages/Fitness"));
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import Home from "./pages/Home";
-import Profile from "./pages/Profile";
-import Login from "./pages/Login";
-import WorkoutBuilder, { WorkoutsLibrary } from "./pages/Workouts";
-import LegalPage from "./pages/Legal";
-import Dashboard from "./pages/Dashboard";
-import DailyHealth from "./pages/DailyHealth";
-import SmartwatchPage from "./pages/Smartwatch";
-import WeeklyAssessmentPage from "./pages/WeeklyAssessment";
-import SubscriptionPage from "./pages/Subscription";
-import SignOutPage from "./pages/SignOut";
+const Home = lazy(() => import("./pages/Home"));
+const Profile = lazy(() => import("./pages/Profile"));
+const Login = lazy(() => import("./pages/Login"));
+const WorkoutBuilder = lazy(() => import("./pages/Workouts"));
+const WorkoutsLibrary = lazy(() =>
+  import("./pages/Workouts").then(module => ({
+    default: module.WorkoutsLibrary,
+  }))
+);
+const LegalPage = lazy(() => import("./pages/Legal"));
+const SmartwatchPage = lazy(() => import("./pages/Smartwatch"));
+const WeeklyAssessmentPage = lazy(() => import("./pages/WeeklyAssessment"));
+const SubscriptionPage = lazy(() => import("./pages/Subscription"));
+const SignOutPage = lazy(() => import("./pages/SignOut"));
+const ConfirmEmail = lazy(() => import("./pages/ConfirmEmail"));
 
-const TrainingPage = () => <Home view="training" />;
+const TrainingPage = () => <Fitness view="training" />;
 const AnalysisPage = () => <Home view="analysis" />;
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
-    <Switch>
-      <Route path={"/"} component={TrainingPage} />
-      <Route path={"/treino"} component={TrainingPage} />
-      <Route path={"/analise"} component={AnalysisPage} />
-      <Route path={"/perfil"} component={Profile} />
-      <Route path={"/dashboard"} component={Dashboard} />
-      <Route path={"/treinos"} component={WorkoutsLibrary} />
-      <Route path={"/treinos/criar"} component={WorkoutBuilder} />
-      <Route path={"/alimentacao"} component={DailyHealth} />
-      <Route path={"/smartwatch"} component={SmartwatchPage} />
-      <Route path={"/avaliacao"} component={WeeklyAssessmentPage} />
-      <Route path={"/assinatura"} component={SubscriptionPage} />
-      <Route path={"/sair"} component={SignOutPage} />
-      <Route path={"/termos"}>{() => <LegalPage kind="terms" />}</Route>
-      <Route path={"/privacidade"}>{() => <LegalPage kind="privacy" />}</Route>
-      <Route path={"/login"} component={Login} />
-      <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
-      <Route component={NotFound} />
-    </Switch>
+    <Suspense
+      fallback={
+        <main className="grid min-h-screen place-items-center" role="status">
+          Ritmo Pro Man…
+        </main>
+      }
+    >
+      <Switch>
+        <Route path={"/"} component={TrainingPage} />
+        <Route path={"/treino"} component={TrainingPage} />
+        <Route path={"/analise"} component={AnalysisPage} />
+        <Route path={"/perfil"} component={Profile} />
+        <Route path={"/dashboard"}>{() => <Fitness view="dashboard" />}</Route>
+        <Route path={"/treinos"} component={WorkoutsLibrary} />
+        <Route path={"/treinos/criar"} component={WorkoutBuilder} />
+        <Route path={"/alimentacao"}>{() => <Fitness view="wellness" />}</Route>
+        <Route path={"/corpo"}>{() => <Fitness view="body" />}</Route>
+        <Route path={"/historico"}>{() => <Fitness view="history" />}</Route>
+        <Route path={"/coach"}>{() => <Fitness view="coach" />}</Route>
+        <Route path={"/smartwatch"} component={SmartwatchPage} />
+        <Route path={"/avaliacao"} component={WeeklyAssessmentPage} />
+        <Route path={"/assinatura"} component={SubscriptionPage} />
+        <Route path={"/sair"} component={SignOutPage} />
+        <Route path={"/termos"}>{() => <LegalPage kind="terms" />}</Route>
+        <Route path={"/privacidade"}>
+          {() => <LegalPage kind="privacy" />}
+        </Route>
+        <Route path={"/login"} component={Login} />
+        <Route path={"/confirm-email"} component={ConfirmEmail} />
+        <Route path={"/404"} component={NotFound} />
+        {/* Final fallback route */}
+        <Route component={NotFound} />
+      </Switch>
+    </Suspense>
   );
 }
 

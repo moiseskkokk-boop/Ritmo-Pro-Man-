@@ -40,15 +40,31 @@ function schemaFrom(params: InvokeParams) {
   if (format?.type === "json_object") return { type: "object" }; return undefined;
 }
 function dateKey() { return new Intl.DateTimeFormat("en-CA", { timeZone: ENV.appTimeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()); }
-async function getUsage(usageDate: string, userId: number) {
-  const db = await getDb(); if (!db) throw new Error("Database is required to enforce Gemini usage limits");
-  const rows = await db.execute(sql`SELECT COALESCE(SUM(totalTokens),0) AS totalTokens FROM gemini_usage_daily WHERE usageDate=${usageDate} AND userId=${userId}`) as any;
-  return { totalTokens: Number(rows[0]?.[0]?.totalTokens ?? 0) };
+// Reserve the maximum cost while holding a global row lock. This also serializes
+// simultaneous requests from separate server processes without calling Gemini
+// inside a transaction. Budget rows are separate from feature usage rows.
+async function reserveBudget(usageDate: string, userId: number, tokens: number) {
+  const db = await getDb(); if (!db) throw new Error("Database required for AI budget");
+  if (!Number.isSafeInteger(userId) || userId <= 0) throw new Error("Authenticated AI user required");
+  await db.transaction(async tx => {
+    for (const id of [0, userId]) await tx.execute(sql`INSERT IGNORE INTO gemini_usage_daily (usageDate,userId,feature) VALUES (${usageDate},${id},'__budget__')`);
+    const [globalRows] = await tx.execute(sql`SELECT totalTokens FROM gemini_usage_daily WHERE usageDate=${usageDate} AND userId=0 AND feature='__budget__' FOR UPDATE`) as any;
+    const [userRows] = await tx.execute(sql`SELECT totalTokens FROM gemini_usage_daily WHERE usageDate=${usageDate} AND userId=${userId} AND feature='__budget__' FOR UPDATE`) as any;
+    // Include usage written before budget reservations were introduced.
+    const [legacyGlobal] = await tx.execute(sql`SELECT COALESCE(SUM(totalTokens),0) AS total FROM gemini_usage_daily WHERE usageDate=${usageDate} AND feature <> '__budget__'`) as any;
+    const [legacyUser] = await tx.execute(sql`SELECT COALESCE(SUM(totalTokens),0) AS total FROM gemini_usage_daily WHERE usageDate=${usageDate} AND userId=${userId} AND feature <> '__budget__'`) as any;
+    const globalTotal = Math.max(Number(globalRows[0].totalTokens), Number(legacyGlobal[0].total));
+    const userTotal = Math.max(Number(userRows[0].totalTokens), Number(legacyUser[0].total));
+    if (globalTotal + tokens > ENV.geminiDailyTokenLimit || userTotal + tokens > ENV.geminiUserDailyTokenLimit) throw new Error("Daily AI capacity reached");
+    await tx.execute(sql`UPDATE gemini_usage_daily SET totalTokens=${globalTotal + tokens},calls=calls+1 WHERE usageDate=${usageDate} AND userId=0 AND feature='__budget__'`);
+    await tx.execute(sql`UPDATE gemini_usage_daily SET totalTokens=${userTotal + tokens},calls=calls+1 WHERE usageDate=${usageDate} AND userId=${userId} AND feature='__budget__'`);
+  });
 }
-async function getGlobalUsage(usageDate: string) {
-  const db = await getDb(); if (!db) throw new Error("Database is required to enforce Gemini usage limits");
-  const rows = await db.execute(sql`SELECT COALESCE(SUM(totalTokens),0) AS totalTokens FROM gemini_usage_daily WHERE usageDate=${usageDate}`) as any;
-  return { totalTokens: Number(rows[0]?.[0]?.totalTokens ?? 0) };
+async function settleBudget(usageDate: string, userId: number, reserved: number, actual: number) {
+  const db = await getDb(); if (!db) throw new Error("Database required for AI budget");
+  await db.transaction(async tx => {
+    for (const id of [0, userId]) await tx.execute(sql`UPDATE gemini_usage_daily SET totalTokens=GREATEST(0,totalTokens-${reserved}+${actual}) WHERE usageDate=${usageDate} AND userId=${id} AND feature='__budget__'`);
+  });
 }
 async function recordUsage(usageDate: string, userId: number, feature: string, inputTokens: number, outputTokens: number) {
   const db = await getDb(); if (!db) throw new Error("Database is required to record Gemini usage");
@@ -66,6 +82,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   if (schema) { generationConfig.responseMimeType = "application/json"; generationConfig.responseSchema = schema; }
   const configuredMax = params.max_tokens ?? params.maxTokens;
   const maxTokens = Math.min(typeof configuredMax === "number" ? configuredMax : ENV.geminiMaxOutputTokens, ENV.geminiMaxOutputTokens);
+  if (![maxTokens, ENV.geminiMaxInputTokens, ENV.geminiDailyTokenLimit, ENV.geminiUserDailyTokenLimit].every(v => Number.isSafeInteger(v) && v > 0)) throw new Error("Invalid Gemini token limit configuration");
   generationConfig.maxOutputTokens = maxTokens;
   const body: Record<string, unknown> = { contents, generationConfig }; if (system) body.systemInstruction = { parts: [{ text: system }] };
   const usageDate = dateKey();
@@ -75,17 +92,21 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   const countResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":countTokens?key=" + encodeURIComponent(ENV.geminiApiKey), { method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({ contents, systemInstruction: system ? { parts:[{text:system}] } : undefined }), signal: AbortSignal.timeout(15_000) });
     if (countResponse.ok) { const countData = await countResponse.json() as any; countedInput = Number(countData.totalTokens ?? estimatedInput); }
   } catch { /* fallback estimate */ }
+  if (!Number.isSafeInteger(countedInput) || countedInput <= 0) throw new Error("Invalid Gemini token count");
   if (countedInput > ENV.geminiMaxInputTokens) throw new Error(`Gemini input limit reached: ${countedInput} > ${ENV.geminiMaxInputTokens} tokens`);
-  const [userUsage, globalUsage] = await Promise.all([getUsage(usageDate, userId), getGlobalUsage(usageDate)]);
-  if (userUsage.totalTokens + countedInput + maxTokens > ENV.geminiUserDailyTokenLimit) throw new Error("Daily AI token limit reached for this account. Try again tomorrow.");
-  if (globalUsage.totalTokens + countedInput + maxTokens > ENV.geminiDailyTokenLimit) throw new Error("Daily AI capacity reached. Please try again tomorrow.");
+  const reserved = countedInput + maxTokens;
+  await reserveBudget(usageDate, userId, reserved);
+  // Failed/uncertain requests retain their reservation conservatively.
   const url = "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent?key=" + encodeURIComponent(ENV.geminiApiKey);
   const response = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(60_000) });
-  if (!response.ok) { const errorText = await response.text(); throw new Error("Gemini request failed: " + response.status + " " + errorText); }
+  if (!response.ok) throw new Error("Gemini request failed (HTTP " + response.status + ")");
   const data = await response.json() as any;
   const text = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("") ?? "";
-  const usage = data.usageMetadata ? { prompt_tokens: data.usageMetadata.promptTokenCount ?? countedInput, completion_tokens: data.usageMetadata.candidatesTokenCount ?? 0, total_tokens: data.usageMetadata.totalTokenCount ?? countedInput } : { prompt_tokens: countedInput, completion_tokens: 0, total_tokens: countedInput };
-  await recordUsage(usageDate, userId, feature, Number(usage.prompt_tokens), Number(usage.completion_tokens));
+  const usage = data.usageMetadata ? { prompt_tokens: data.usageMetadata.promptTokenCount ?? countedInput, completion_tokens: Math.max(0, Number(data.usageMetadata.totalTokenCount ?? (Number(data.usageMetadata.promptTokenCount ?? countedInput) + Number(data.usageMetadata.candidatesTokenCount ?? 0) + Number(data.usageMetadata.thoughtsTokenCount ?? 0))) - Number(data.usageMetadata.promptTokenCount ?? countedInput)), total_tokens: data.usageMetadata.totalTokenCount ?? countedInput } : { prompt_tokens: countedInput, completion_tokens: 0, total_tokens: countedInput };
+  const actualInput = Number(usage.prompt_tokens), actualOutput = Number(usage.completion_tokens);
+  if (![actualInput,actualOutput].every(v => Number.isSafeInteger(v) && v >= 0)) throw new Error("Invalid Gemini usage response");
+  await recordUsage(usageDate, userId, feature, actualInput, actualOutput);
+  await settleBudget(usageDate, userId, reserved, actualInput + actualOutput);
   return { id: data.responseId ?? crypto.randomUUID(), created: Math.floor(Date.now()/1000), model, choices: [{ index:0, message:{ role:"assistant", content:text }, finish_reason:data.candidates?.[0]?.finishReason ?? null }], usage };
 }
 export async function listLLMModels() {

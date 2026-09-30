@@ -38,8 +38,8 @@ export const exerciseIds = exerciseCatalog.map(item => item.id) as [ExerciseId, 
 export const exerciseById = Object.fromEntries(exerciseCatalog.map(item => [item.id, item])) as Record<ExerciseId, (typeof exerciseCatalog)[number]>;
 
 export const defaultWorkoutTemplates = {
-  A: { name: "Dia 1 — Peito, ombros e tríceps", objective: "Hipertrofia", focusGroup: "Peito / Ombros / Tríceps", durationMinutes: 60, exercises: ["A01", "A02", "A03", "A04", "A05", "A06", "A07", "A08"] },
-  B: { name: "Dia 2 — Costas e bíceps", objective: "Hipertrofia", focusGroup: "Costas / Bíceps", durationMinutes: 60, exercises: ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08"] },
-  C: { name: "Dia 3 — Pernas e glúteos", objective: "Hipertrofia", focusGroup: "Pernas / Glúteos", durationMinutes: 65, exercises: ["C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08"] },
-  D: { name: "Dia 4 — Peito, costas e braços", objective: "Hipertrofia", focusGroup: "Peito / Costas / Braços", durationMinutes: 60, exercises: ["D01", "D02", "D03", "D04", "D05", "D06", "D07", "D08"] },
+  A: { name: "TREINO SUGERIDO 1 — Peito, ombros e tríceps", objective: "Hipertrofia", focusGroup: "Peito / Ombros / Tríceps", durationMinutes: 60, exercises: ["A01", "A02", "A03", "A04", "A05", "A06", "A07", "A08"] },
+  B: { name: "TREINO SUGERIDO 2 — Costas e bíceps", objective: "Hipertrofia", focusGroup: "Costas / Bíceps", durationMinutes: 60, exercises: ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08"] },
+  C: { name: "TREINO SUGERIDO 3 — Pernas e glúteos", objective: "Hipertrofia", focusGroup: "Pernas / Glúteos", durationMinutes: 65, exercises: ["C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08"] },
+  D: { name: "TREINO SUGERIDO 4 — Peito, costas e braços", objective: "Hipertrofia", focusGroup: "Peito / Costas / Braços", durationMinutes: 60, exercises: ["D01", "D02", "D03", "D04", "D05", "D06", "D07", "D08"] },
 } as const;

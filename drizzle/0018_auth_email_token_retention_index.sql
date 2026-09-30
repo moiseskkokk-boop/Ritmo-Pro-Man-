@@ -1,0 +1,1 @@
+CREATE INDEX `auth_email_tokens_expires` ON `auth_email_tokens` (`expiresAt`);

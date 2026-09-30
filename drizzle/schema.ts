@@ -20,6 +20,10 @@ export const users = mysqlTable("users", {
   loginMethod: varchar("loginMethod", { length: 64 }),
   termsAcceptedAt: timestamp("termsAcceptedAt"),
   privacyAcceptedAt: timestamp("privacyAcceptedAt"),
+  termsAcceptedVersion: varchar("termsAcceptedVersion", { length: 32 }),
+  privacyAcceptedVersion: varchar("privacyAcceptedVersion", { length: 32 }),
+  emailVerifiedAt: timestamp("emailVerifiedAt"),
+  pendingEmail: varchar("pendingEmail", { length: 320 }),
   profileImageKey: varchar("profileImageKey", { length: 255 }),
   profileImageUrl: varchar("profileImageUrl", { length: 512 }),
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
@@ -28,8 +32,49 @@ export const users = mysqlTable("users", {
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
 });
 
+export const authEmailTokens = mysqlTable("auth_email_tokens", {
+  tokenHash: varchar("tokenHash", { length: 64 }).primaryKey(),
+  userId: int("userId").notNull(),
+  purpose: mysqlEnum("purpose", ["verify_email", "password_reset", "email_change"]).notNull(),
+  targetEmail: varchar("targetEmail", { length: 320 }),
+  expiresAt: timestamp("expiresAt").notNull(),
+  consumedAt: timestamp("consumedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({ userPurpose: index("auth_email_tokens_user_purpose").on(table.userId, table.purpose), expires: index("auth_email_tokens_expires").on(table.expiresAt) }));
+
+export const authRateLimits = mysqlTable("auth_rate_limits", {
+  rateKey: varchar("rateKey", { length: 64 }).primaryKey(),
+  windowStartedAt: timestamp("windowStartedAt").notNull(),
+  attempts: int("attempts").notNull().default(0),
+}, table => ({ windowStarted: index("auth_rate_limits_window_started").on(table.windowStartedAt) }));
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
+
+export const trainingSessions = mysqlTable("training_sessions", {
+  id: varchar("id", { length: 36 }).primaryKey(), userId: int("userId").notNull(), activityDate: varchar("activityDate", { length: 10 }).notNull(),
+  status: mysqlEnum("status", ["in_progress", "completed"]).default("in_progress").notNull(),
+  snapshotJson: text("snapshotJson").notNull(), note: text("note"), startedAt: timestamp("startedAt").defaultNow().notNull(), completedAt: timestamp("completedAt"),
+}, table => ({ userDate: uniqueIndex("training_sessions_user_date").on(table.userId, table.activityDate) }));
+export const trainingSets = mysqlTable("training_sets", {
+  id: varchar("id", { length: 80 }).primaryKey(), sessionId: varchar("sessionId", { length: 36 }).notNull(), exerciseIndex: int("exerciseIndex").notNull(), setIndex: int("setIndex").notNull(),
+  exerciseId: varchar("exerciseId", { length: 8 }).notNull(), reps: int("reps"), seconds: int("seconds"), loadKg: varchar("loadKg", { length: 12 }), note: varchar("note", { length: 500 }), confirmedAt: timestamp("confirmedAt").defaultNow().notNull(), voidedAt: timestamp("voidedAt"),
+}, table => ({ session: index("training_sets_session").on(table.sessionId) }));
+export const fitnessPreferences = mysqlTable("fitness_preferences", { userId: int("userId").primaryKey(), dataJson: text("dataJson").notNull(), updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull() });
+export const wellnessEntries = mysqlTable("wellness_entries", {
+  id: varchar("id", { length: 36 }).primaryKey(), userId: int("userId").notNull(), activityDate: varchar("activityDate", { length: 10 }).notNull(), kind: mysqlEnum("kind", ["meal", "water", "cardio"]).notNull(),
+  dataJson: text("dataJson").notNull(), revision: int("revision").default(0).notNull(), createdAt: timestamp("createdAt").defaultNow().notNull(), updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({ userDate: index("wellness_entries_user_date").on(table.userId, table.activityDate) }));
+export const bodyMeasurements = mysqlTable("body_measurements", {
+  id: varchar("id", { length: 36 }).primaryKey(), userId: int("userId").notNull(), activityDate: varchar("activityDate", { length: 10 }).notNull(), dataJson: text("dataJson").notNull(), revision: int("revision").default(0).notNull(),
+  photoKey: varchar("photoKey", { length: 255 }), createdAt: timestamp("createdAt").defaultNow().notNull(), updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({ userDate: index("body_measurements_user_date").on(table.userId, table.activityDate) }));
+export const fitnessRevisions = mysqlTable("fitness_revisions", {
+  id: int("id").autoincrement().primaryKey(), userId: int("userId").notNull(), entityId: varchar("entityId", { length: 80 }).notNull(), kind: varchar("kind", { length: 32 }).notNull(), previousJson: text("previousJson").notNull(), createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({ userEntity: index("fitness_revisions_user_entity").on(table.userId, table.entityId) }));
+export const coachTurns = mysqlTable("coach_turns", {
+  id: varchar("id", { length: 36 }).primaryKey(), userId: int("userId").notNull(), question: text("question").notNull(), answer: text("answer"), status: mysqlEnum("status", ["processing", "completed", "failed"]).default("processing").notNull(), contextAuthorized: int("contextAuthorized").default(0).notNull(), createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({ userCreated: index("coach_turns_user_created").on(table.userId, table.createdAt) }));
 
 export const weeklyAssessments = mysqlTable("weekly_assessments", {
   id: int("id").autoincrement().primaryKey(),

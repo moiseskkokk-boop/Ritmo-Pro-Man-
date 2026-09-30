@@ -37,7 +37,7 @@ type Workout = {
 const workouts: Workout[] = [
   {
     id: "A",
-    day: "Segunda",
+    day: "TREINO SUGERIDO 1",
     title: "Peito · Ombros · Tríceps",
     short: "Peito / Ombros",
     exercises: [
@@ -85,7 +85,7 @@ const workouts: Workout[] = [
   },
   {
     id: "B",
-    day: "Terça",
+    day: "TREINO SUGERIDO 2",
     title: "Costas · Bíceps",
     short: "Costas / Bíceps",
     exercises: [
@@ -133,7 +133,7 @@ const workouts: Workout[] = [
   },
   {
     id: "C",
-    day: "Quinta",
+    day: "TREINO SUGERIDO 3",
     title: "Pernas · Glúteo",
     short: "Pernas / Glúteo",
     exercises: [
@@ -181,7 +181,7 @@ const workouts: Workout[] = [
   },
   {
     id: "D",
-    day: "Sexta",
+    day: "TREINO SUGERIDO 4",
     title: "Peito · Costas · Braços",
     short: "Peito / Costas",
     exercises: [
@@ -1867,7 +1867,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
       : null,
     weeklyActivityAnalysis.data
   );
-  const day5Eligible = todayIndex >= 4 && Boolean(assessmentQuery.data) && (weeklyActivityAnalysis.data?.workoutsCompleted ?? 0) >= 4;
+  const day5Eligible = false; // Fifth day remains paused.
   const effectiveRecommendation =
     aiDay5?.recommendation ?? (day5Eligible ? currentRecommendation : "waiting");
   const recommendationLabel =
@@ -3034,7 +3034,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
                 </div>
                 <div className="day5-side">
                   <span className="status-chip">
-                    {day5Eligible ? a.day5Ready : a.day5Waiting}
+                    {language === "en" ? "PAUSED" : language === "es" ? "PAUSADO" : "PAUSADO"}
                   </span>
                   <button
                     className="outline-btn"
@@ -3106,7 +3106,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
                   ? entry.bodyFatEstimatePercent - prior.bodyFatEstimatePercent : null;
                 return <article className="section-shell" key={entry.analysisMonth} style={{ marginTop: 20 }}>
                   <div className="section-kicker green">{entry.analysisMonth} · {entry.objective ?? (language === "pt" ? "objetivo não registado" : "goal not recorded")}</div>
-                  <h3>{language === "en" ? "Estimated body composition" : language === "es" ? "Composición corporal estimada" : "Composição corporal estimada"}</h3>
+                  <h3>{language === "en" ? "AI ESTIMATE — body composition" : language === "es" ? "ESTIMACIÓN POR IA — composición corporal" : "ESTIMATIVA POR IA — composição corporal"}</h3>
                   <p>{entry.bodyFatEstimatePercent == null
                     ? (language === "pt" ? "Percentual não estimado: imagem/dados insuficientes." : language === "es" ? "Porcentaje no estimado: imagen/datos insuficientes." : "Percentage not estimated: insufficient image/data.")
                     : `${entry.bodyFatEstimatePercent}% · ${language === "pt" ? "estimativa visual" : language === "es" ? "estimación visual" : "visual estimate"}`}

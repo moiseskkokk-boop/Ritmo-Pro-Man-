@@ -1,3 +1,4 @@
+import { fitnessRouter } from "./fitness";
 import { COOKIE_NAME } from "@shared/const";
 import { z } from "zod";
 import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
@@ -7,7 +8,7 @@ import { TRPCError } from "@trpc/server";
 import { getSessionCookieOptions } from "./_core/cookies";
 import type { TrpcContext } from "./_core/context";
 import { ENV, getJwtSecret } from "./_core/env";
-import { attachMercadoPagoCheckout, createPendingSubscription, createLocalUser, createOAuthUser, createWorkoutPlan, deleteWorkoutPlan, getLatestUserSubscription, getUserByEmail, getUserById, getWorkoutPlans, invalidateUserSessions, saveBodyAnalysis, setUserLastSignedIn, updateSubscriptionByProviderId, updateUserName, updateUserPassword, updateWorkoutPlan } from "./db";
+import { attachMercadoPagoCheckout, createPendingSubscription, createLocalUser, createOAuthUser, createWorkoutPlan, deleteWorkoutPlan, getLatestUserSubscription, getUserByEmail, getUserById, getWorkoutPlans, invalidateUserSessions, saveBodyAnalysis, setUserLastSignedIn, updateSubscriptionByProviderId, updateUserName, updateUserPassword, updateWorkoutPlan, consumeAuthEmailToken, consumeAuthRateLimit, issueAuthEmailToken, markEmailVerified, setPendingUserEmail, updateUserEmail } from "./db";
 import { invokeLLM } from "./_core/llm";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { clearCurrentAssessment, deleteAllUserData, getAssessmentHistory, getBodyAnalysisHistory, getCurrentAssessment, getDailyHistory, getDailyLog, getWeeklyActivityAnalysis, getWearableActivities, getWearableConnections, ingestWearableActivity, resetUserProgress, saveAssessment, saveDailyLog, updateUserProfileImage, upsertWearableConnection } from "./db";
@@ -17,17 +18,19 @@ import { beginWearableOAuth, disconnectWearableAccount, syncWearable } from "./w
 import type { User } from "../drizzle/schema";
 import { hasPremiumAccess, isMercadoPagoCheckoutUrl, makeUserExternalReference, MercadoPagoClient } from "./mercadopago";
 import { exerciseById, exerciseCatalog, exerciseIds } from "@shared/workouts";
+import { sendAuthEmail } from "./auth-emails";
 
 async function toClientUser(user: User) {
   let profileImageUrl: string | null = null;
   if (user.profileImageKey) {
     try { profileImageUrl = await storageGetSignedUrl(user.profileImageKey); }
-    catch (error) { console.warn("[Profile] Could not refresh the signed photo URL", error); }
+    catch (error) { console.warn("[Profile] Could not refresh the signed photo URL"); }
   }
   return {
     id: user.id,
     name: user.name,
     email: user.email,
+    emailVerified: Boolean(user.emailVerifiedAt),
     loginMethod: user.loginMethod,
     hasPassword: Boolean(user.passwordHash),
     profileImageUrl,
@@ -69,6 +72,8 @@ async function consumeLoginChallenge(ctx: Pick<TrpcContext, "req" | "res">, prov
   try {
     const { payload } = await jwtVerify(token, getJwtSecret(), { algorithms: ["HS256"] });
     if (payload.purpose !== provider + "_login" || typeof payload.nonce !== "string" || typeof payload.state !== "string") throw new Error("Invalid challenge");
+    const replayKey = createHash("sha256").update(`oauth_challenge\0${token}`).digest("hex");
+    if (!await consumeAuthRateLimit(replayKey, 1, 10 * 60_000)) throw new Error("Challenge already consumed");
     return { nonce: payload.nonce, state: payload.state };
   } catch {
     throw new TRPCError({ code: "UNAUTHORIZED", message: "A validação de segurança do provedor expirou. Tente novamente." });
@@ -80,16 +85,58 @@ const passwordHash = async (password: string) => {
   return `${salt}:${hash.toString("hex")}`;
 };
 async function checkPassword(password: string, encoded: string | null) {
-  if (!encoded) return false;
-  const [salt, stored] = encoded.split(":");
-  if (!/^[a-f0-9]{32}$/i.test(salt || "") || !/^[a-f0-9]{128}$/i.test(stored || "")) return false;
+  const [candidateSalt, candidateHash] = (encoded ?? "").split(":");
+  const valid = /^[a-f0-9]{32}$/i.test(candidateSalt || "") && /^[a-f0-9]{128}$/i.test(candidateHash || "");
+  // Unknown and provider-only accounts still perform the expensive password check.
+  const salt = valid ? candidateSalt : "0".repeat(32);
+  const stored = valid ? candidateHash : "0".repeat(128);
   const hash = await promisify(scryptCb)(password, salt, 64) as Buffer;
   const expected = Buffer.from(stored, "hex");
-  return expected.length === hash.length && timingSafeEqual(expected, hash);
+  return timingSafeEqual(expected, hash) && valid;
 }
 async function setSession(ctx: Pick<TrpcContext, "req" | "res">, user: User) {
   const token = await new SignJWT({ sv: user.sessionVersion }).setProtectedHeader({ alg: "HS256" }).setSubject(String(user.id)).setIssuedAt().setExpirationTime("30d").sign(getJwtSecret());
   ctx.res.cookie(COOKIE_NAME, token, { ...getSessionCookieOptions(ctx.req), maxAge: 30 * 24 * 60 * 60 * 1000 });
+}
+const POLICY_VERSION = "2026-09";
+const strongPassword = z.string().min(10, "Use uma senha com pelo menos 10 caracteres.").max(128).regex(/[a-z]/, "Inclua uma letra minúscula.").regex(/[A-Z]/, "Inclua uma letra maiúscula.").regex(/[0-9]/, "Inclua um número.");
+type AuthTokenPurpose = "verify_email" | "password_reset" | "email_change";
+function emailDeliveryConfigured() {
+  if (!ENV.resendApiKey || !ENV.emailFrom || !ENV.appPublicUrl) return false;
+  try { const url = new URL(ENV.appPublicUrl); return !url.username && !url.password && (url.protocol === "https:" || (!ENV.isProduction && url.protocol === "http:")); }
+  catch { return false; }
+}
+function actionUrl(path: string, token: string) {
+  try {
+    const base = new URL(ENV.appPublicUrl);
+    if (ENV.isProduction && base.protocol !== "https:") return null;
+    base.pathname = path;
+    base.search = "";
+    base.hash = `#${path === "/login" ? "reset" : "token"}=${encodeURIComponent(token)}`;
+    return base.toString();
+  } catch { return null; }
+}
+async function mintEmailToken(user: User, purpose: AuthTokenPurpose, targetEmail?: string | null) {
+  const token = randomBytes(32).toString("base64url");
+  const tokenHash = createHash("sha256").update(token).digest("hex");
+  const lifetime = purpose === "password_reset" ? 20 : 30;
+  await issueAuthEmailToken({ tokenHash, userId: user.id, purpose, targetEmail: targetEmail ?? user.email, expectedSessionVersion: user.sessionVersion, expiresAt: new Date(Date.now() + lifetime * 60_000) });
+  return { token, tokenHash };
+}
+async function authRateAllowed(ctx: Pick<TrpcContext, "req">, scope: string, identity: string, limit: number, windowMs = 15 * 60_000) {
+  const ip = ctx.req.ip || ctx.req.socket?.remoteAddress || "unknown";
+  const rateKey = createHash("sha256").update(`${scope}\0identity\0${identity.trim().toLowerCase()}`).digest("hex");
+  const ipRateKey = createHash("sha256").update(`${scope}\0ip\0${ip}`).digest("hex");
+  const identityAllowed = await consumeAuthRateLimit(rateKey, limit, windowMs);
+  const ipAllowed = await consumeAuthRateLimit(ipRateKey, limit * 5, windowMs);
+  return identityAllowed && ipAllowed;
+}
+async function deliverEmailAction(user: User, purpose: AuthTokenPurpose, kind: "verify_email" | "email_change" | "password_reset", targetEmail?: string) {
+  if (!emailDeliveryConfigured()) return false;
+  const { token, tokenHash } = await mintEmailToken(user, purpose, targetEmail);
+  const url = actionUrl(purpose === "password_reset" ? "/login" : "/confirm-email", token);
+  if (!url) return false;
+  return sendAuthEmail(kind, targetEmail ?? user.email ?? "", { name: user.name, actionUrl: url }, tokenHash);
 }
 async function signInFederatedUser(provider: "google" | "apple", providerId: string, emailValue: string, nameValue: unknown, acceptedTerms: boolean) {
   const email = emailValue.trim().toLowerCase();
@@ -99,13 +146,17 @@ async function signInFederatedUser(provider: "google" | "apple", providerId: str
     if (!acceptedTerms) throw new TRPCError({ code: "FORBIDDEN", message: "Aceite os Termos de Uso e a Política de Privacidade para criar uma conta." });
     try {
       const acceptedAt = new Date();
-      user = await createOAuthUser({ provider, providerId, email, name: typeof nameValue === "string" && nameValue.trim() ? nameValue.trim().slice(0, 100) : email.split("@")[0], termsAcceptedAt: acceptedAt, privacyAcceptedAt: acceptedAt });
+      user = await createOAuthUser({ provider, providerId, email, name: typeof nameValue === "string" && nameValue.trim() ? nameValue.trim().slice(0, 100) : email.split("@")[0], termsAcceptedAt: acceptedAt, privacyAcceptedAt: acceptedAt, termsAcceptedVersion: POLICY_VERSION, privacyAcceptedVersion: POLICY_VERSION });
     } catch (error) {
       if (!isDuplicateEntry(error)) throw error;
       user = await getUserByEmail(email);
     }
   }
   if (!user) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível carregar a conta." });
+  if (!user.emailVerifiedAt) {
+    user = await markEmailVerified(user.id, email, user.sessionVersion, true);
+    if (!user) throw new TRPCError({ code: "UNAUTHORIZED", message: "A conta foi alterada. Tente entrar novamente." });
+  }
   await setUserLastSignedIn(user.id);
   return getUserById(user.id);
 }
@@ -130,7 +181,7 @@ async function removeUserBodyPhotos(userId: number) {
     try {
       const keys = JSON.parse(row.photoKeys) as Record<string, unknown>;
       for (const key of Object.values(keys)) if (typeof key === "string") await storageRemove(key);
-    } catch (error) { console.warn("[BodyAnalysis] Photo cleanup failed", error); }
+    } catch (error) { console.warn("[BodyAnalysis] Photo cleanup failed"); }
   }
 }
 async function requirePremium(userId: number) {
@@ -162,30 +213,46 @@ function publicWorkoutPlan(plan: Awaited<ReturnType<typeof getWorkoutPlans>>[num
   return { id: plan.id, source: plan.source, baseWorkoutId: plan.baseWorkoutId, name: plan.name, objective: plan.objective, focusGroup: plan.focusGroup, durationMinutes: plan.durationMinutes, notes: plan.notes, exercises: z.array(workoutExerciseSchema).parse(exercises), createdAt: plan.createdAt, updatedAt: plan.updatedAt };
 }
 
+function fifthDayPaused(): boolean { return true; }
+
 export const appRouter = router({
+  fitness: fitnessRouter,
   auth: router({
     me: publicProcedure.query(async opts => opts.ctx.user ? toClientUser(opts.ctx.user) : null),
-    providers: publicProcedure.query(() => ({ googleClientId: ENV.googleClientId || null, appleServiceId: ENV.appleServiceId || null })),
-    googleChallenge: publicProcedure.mutation(({ ctx }) => createLoginChallenge(ctx, "google")),
-    appleChallenge: publicProcedure.mutation(({ ctx }) => createLoginChallenge(ctx, "apple")),
-    register: publicProcedure.input(z.object({ name: z.string().trim().min(2).max(100), email: z.string().email().max(320), password: z.string().min(8).max(128), acceptedTerms: z.literal(true) })).mutation(async ({ ctx, input }) => {
+    sessionStatus: publicProcedure.query(opts => ({ expired: Boolean(opts.ctx.sessionExpired) })),
+    providers: publicProcedure.query(() => ({ googleClientId: ENV.googleClientId || null, appleServiceId: ENV.appleServiceId || null, emailConfigured: emailDeliveryConfigured() })),
+    googleChallenge: publicProcedure.mutation(async ({ ctx }) => {
+      if (!await authRateAllowed(ctx, "google_challenge", "challenge", 30)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos." });
+      return createLoginChallenge(ctx, "google");
+    }),
+    appleChallenge: publicProcedure.mutation(async ({ ctx }) => {
+      if (!await authRateAllowed(ctx, "apple_challenge", "challenge", 30)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos." });
+      return createLoginChallenge(ctx, "apple");
+    }),
+    register: publicProcedure.input(z.object({ name: z.string().trim().min(2).max(100), email: z.string().trim().email().max(320), password: strongPassword, acceptedTerms: z.literal(true) })).mutation(async ({ ctx, input }) => {
       const email = input.email.trim().toLowerCase();
-      if (await getUserByEmail(email)) throw new TRPCError({ code: "CONFLICT", message: "Email already registered" });
+      if (!await authRateAllowed(ctx, "register", email, 5)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos e tente novamente." });
+      const hashedPassword = await passwordHash(input.password);
+      if (await getUserByEmail(email)) return { success: true as const };
       let user: User | undefined;
       try {
         const acceptedAt = new Date();
-        user = await createLocalUser({ name: input.name, email, passwordHash: await passwordHash(input.password), openId: randomBytes(24).toString("hex"), termsAcceptedAt: acceptedAt, privacyAcceptedAt: acceptedAt });
+        user = await createLocalUser({ name: input.name, email, passwordHash: hashedPassword, openId: randomBytes(24).toString("hex"), termsAcceptedAt: acceptedAt, privacyAcceptedAt: acceptedAt, termsAcceptedVersion: POLICY_VERSION, privacyAcceptedVersion: POLICY_VERSION });
       } catch (error) {
-        if (isDuplicateEntry(error)) throw new TRPCError({ code: "CONFLICT", message: "Email already registered" });
+        if (isDuplicateEntry(error)) return { success: true as const };
         throw error;
       }
       if (!user) throw new Error("Could not create account");
-      await setSession(ctx, user);
-      return toClientUser(user);
+      void deliverEmailAction(user, "verify_email", "verify_email").catch(() => console.warn("[AuthEmail] Confirmation message could not be queued"));
+      return { success: true as const };
     }),
-    login: publicProcedure.input(z.object({ email: z.string().email(), password: z.string().min(1) })).mutation(async ({ ctx, input }) => {
-      const user = await getUserByEmail(input.email.trim().toLowerCase());
-      if (!user || !await checkPassword(input.password, user.passwordHash)) throw new TRPCError({ code: "UNAUTHORIZED", message: "E-mail ou senha inválidos." });
+    login: publicProcedure.input(z.object({ email: z.string().trim().email().max(320), password: z.string().min(1).max(128) })).mutation(async ({ ctx, input }) => {
+      const email = input.email.trim().toLowerCase();
+      if (!await authRateAllowed(ctx, "login", email, 10)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos e tente novamente." });
+      const user = await getUserByEmail(email);
+      const passwordValid = await checkPassword(input.password, user?.passwordHash ?? null);
+      if (!user || !passwordValid) throw new TRPCError({ code: "UNAUTHORIZED", message: "E-mail ou senha inválidos." });
+      if (!user.emailVerifiedAt) throw new TRPCError({ code: "FORBIDDEN", message: "Confirme seu e-mail para acessar a conta. Você pode solicitar um novo link de confirmação." });
       await setUserLastSignedIn(user.id);
       await setSession(ctx, user);
       const signedInUser = await getUserById(user.id);
@@ -194,6 +261,7 @@ export const appRouter = router({
     }),
     googleSignIn: publicProcedure.input(z.object({ credential: z.string().min(100).max(12000), acceptedTerms: z.boolean() })).mutation(async ({ ctx, input }) => {
       if (!ENV.googleClientId) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Login com Google ainda não está configurado." });
+      if (!await authRateAllowed(ctx, "google_signin", "provider", 20)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos." });
       const challenge = await consumeLoginChallenge(ctx, "google");
       const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(input.credential)}`, { signal: AbortSignal.timeout(10_000) });
       if (!response.ok) throw new TRPCError({ code: "UNAUTHORIZED", message: "Não foi possível validar a conta do Google." });
@@ -207,6 +275,7 @@ export const appRouter = router({
     }),
     appleSignIn: publicProcedure.input(z.object({ identityToken: z.string().min(100).max(12000), returnedState: z.string().min(16).max(128), name: z.string().max(100).optional(), acceptedTerms: z.boolean() })).mutation(async ({ ctx, input }) => {
       if (!ENV.appleServiceId) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Login com Apple ainda não está configurado." });
+      if (!await authRateAllowed(ctx, "apple_signin", "provider", 20)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos." });
       const challenge = await consumeLoginChallenge(ctx, "apple");
       if (challenge.state !== input.returnedState) throw new TRPCError({ code: "UNAUTHORIZED", message: "A validação de segurança da Apple falhou." });
       let claims: Record<string, unknown>;
@@ -224,27 +293,59 @@ export const appRouter = router({
       await setSession(ctx, user);
       return toClientUser(user);
     }),
-    requestPasswordReset: publicProcedure.input(z.object({ email: z.string().email().max(320) })).mutation(async ({ input }) => {
-      if (!ENV.resendApiKey || !ENV.emailFrom || !ENV.appPublicUrl) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "A recuperação de senha ainda não está configurada no servidor." });
-      const user = await getUserByEmail(input.email.trim().toLowerCase());
-      if (!user?.passwordHash) return { success: true as const };
-      const token = await new SignJWT({ purpose: "password_reset", sv: user.sessionVersion }).setProtectedHeader({ alg: "HS256" }).setSubject(String(user.id)).setIssuedAt().setExpirationTime("20m").sign(getJwtSecret());
-      const resetUrl = `${ENV.appPublicUrl.replace(/\/$/, "")}/login?reset=${encodeURIComponent(token)}`;
-      const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { authorization: `Bearer ${ENV.resendApiKey}`, "content-type": "application/json" }, body: JSON.stringify({ from: ENV.emailFrom, to: [user.email], subject: "Redefinição de senha do Ritmo Pro Man", text: `Para escolher uma nova senha, abra este link (válido por 20 minutos): ${resetUrl}\n\nSe você não solicitou isso, ignore este e-mail.` }), signal: AbortSignal.timeout(15_000) });
-      if (!response.ok) throw new TRPCError({ code: "BAD_GATEWAY", message: "Não foi possível enviar o e-mail de recuperação agora." });
+    requestPasswordReset: publicProcedure.input(z.object({ email: z.string().trim().email().max(320) })).mutation(async ({ ctx, input }) => {
+      const email = input.email.trim().toLowerCase();
+      if (!await authRateAllowed(ctx, "password_reset", email, 3)) return { success: true as const };
+      const user = await getUserByEmail(email);
+      if (user?.passwordHash) void deliverEmailAction(user, "password_reset", "password_reset").catch(() => console.warn("[AuthEmail] Recovery message could not be queued"));
       return { success: true as const };
     }),
-    resetPassword: publicProcedure.input(z.object({ token: z.string().min(20).max(4000), password: z.string().min(8).max(128) })).mutation(async ({ input }) => {
-      try {
-        const { payload } = await jwtVerify(input.token, getJwtSecret(), { algorithms: ["HS256"] });
-        if (payload.purpose !== "password_reset" || typeof payload.sub !== "string" || !/^\d+$/.test(payload.sub) || typeof payload.sv !== "number") throw new Error("Invalid token");
-        const user = await getUserById(Number(payload.sub));
-        if (!user || user.sessionVersion !== payload.sv || !user.passwordHash) throw new Error("Expired token");
-        await updateUserPassword(user.id, await passwordHash(input.password));
-        return { success: true as const };
-      } catch {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Este link de recuperação é inválido ou expirou. Solicite um novo." });
+    resendVerification: publicProcedure.input(z.object({ email: z.string().trim().email().max(320) })).mutation(async ({ ctx, input }) => {
+      const email = input.email.trim().toLowerCase();
+      if (!await authRateAllowed(ctx, "verify_email", email, 3)) return { success: true as const };
+      const user = await getUserByEmail(email);
+      if (user && !user.emailVerifiedAt) void deliverEmailAction(user, "verify_email", "verify_email").catch(() => console.warn("[AuthEmail] Confirmation message could not be queued"));
+      return { success: true as const };
+    }),
+    confirmEmail: publicProcedure.input(z.object({ token: z.string().min(32).max(128) })).mutation(async ({ ctx, input }) => {
+      const tokenHash = createHash("sha256").update(input.token).digest("hex");
+      if (!await authRateAllowed(ctx, "confirm_token", "token", 30)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos." });
+      const verification = await consumeAuthEmailToken(tokenHash, "verify_email");
+      if (verification) {
+        const owner = await getUserById(verification.userId);
+        if (!owner || verification.targetEmail !== owner.email) throw new TRPCError({ code: "BAD_REQUEST", message: "Este link é inválido ou expirou. Solicite uma nova confirmação." });
+        const user = await markEmailVerified(verification.userId, owner.email!, verification.sessionVersion);
+        if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "Não foi possível confirmar esta conta." });
+        await setSession(ctx, user);
+        await sendAuthEmail("welcome", user.email ?? "", { name: user.name }, `welcome-${user.id}`);
+        return { success: true as const, purpose: "verify_email" as const, user: await toClientUser(user) };
       }
+      const emailChange = await consumeAuthEmailToken(tokenHash, "email_change");
+      const owner = emailChange ? await getUserById(emailChange.userId) : undefined;
+      if (!emailChange?.targetEmail || !owner || owner.pendingEmail !== emailChange.targetEmail) throw new TRPCError({ code: "BAD_REQUEST", message: "Este link é inválido ou expirou. Solicite uma nova confirmação." });
+      let updated: User | undefined;
+      try { updated = await updateUserEmail(owner.id, emailChange.targetEmail, emailChange.sessionVersion); }
+      catch (error) {
+        if (isDuplicateEntry(error)) throw new TRPCError({ code: "BAD_REQUEST", message: "Não foi possível confirmar a alteração. Solicite uma nova confirmação." });
+        throw error;
+      }
+      if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Não foi possível atualizar o e-mail da conta." });
+      await setSession(ctx, updated);
+      await sendAuthEmail("email_changed", emailChange.targetEmail, { name: owner.name }, `email-changed-${owner.id}-${emailChange.targetEmail}`);
+      if (owner.email) await sendAuthEmail("security_alert", owner.email, { name: owner.name, detail: "O endereço de e-mail da sua conta foi alterado. Se você não reconhece esta mudança, entre em contato com o suporte." }, `email-changed-alert-${owner.id}-${emailChange.targetEmail}`);
+      return { success: true as const, purpose: "email_change" as const, user: await toClientUser(updated) };
+    }),
+    resetPassword: publicProcedure.input(z.object({ token: z.string().min(32).max(128), password: strongPassword })).mutation(async ({ ctx, input }) => {
+      if (!await authRateAllowed(ctx, "reset_token", "token", 20)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos." });
+      const tokenHash = createHash("sha256").update(input.token).digest("hex");
+      const token = await consumeAuthEmailToken(tokenHash, "password_reset");
+      const user = token ? await getUserById(token.userId) : undefined;
+      if (!user?.passwordHash || token?.targetEmail !== user.email) throw new TRPCError({ code: "BAD_REQUEST", message: "Este link de recuperação é inválido ou expirou. Solicite um novo." });
+      const updated = await updateUserPassword(user.id, await passwordHash(input.password), token!.sessionVersion);
+      if (!updated) throw new TRPCError({ code: "BAD_REQUEST", message: "Este link de recuperação é inválido ou expirou. Solicite um novo." });
+      await sendAuthEmail("password_changed", user.email ?? "", { name: user.name }, `password-changed-${user.id}-${user.sessionVersion + 1}`);
+      await sendAuthEmail("security_alert", user.email ?? "", { name: user.name, detail: "A senha da sua conta foi redefinida. Se você não reconhece esta ação, entre em contato com o suporte." }, `password-reset-alert-${user.id}-${user.sessionVersion + 1}`);
+      return { success: true as const };
     }),
     logout: publicProcedure.mutation(async ({ ctx }) => {
       ctx.res.clearCookie(COOKIE_NAME, { ...getSessionCookieOptions(ctx.req), maxAge: -1 });
@@ -260,11 +361,26 @@ export const appRouter = router({
       if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "Perfil não encontrado." });
       return toClientUser(user);
     }),
-    changePassword: protectedProcedure.input(z.object({ currentPassword: z.string().max(128).optional(), newPassword: z.string().min(8).max(128) })).mutation(async ({ ctx, input }) => {
+    changePassword: protectedProcedure.input(z.object({ currentPassword: z.string().max(128).optional(), newPassword: strongPassword })).mutation(async ({ ctx, input }) => {
+      if (!await authRateAllowed(ctx, "change_password", String(ctx.user.id), 5)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos." });
       if (ctx.user.passwordHash && (!input.currentPassword || !await checkPassword(input.currentPassword, ctx.user.passwordHash))) throw new TRPCError({ code: "UNAUTHORIZED", message: "A senha atual está incorreta." });
-      const user = await updateUserPassword(ctx.user.id, await passwordHash(input.newPassword));
+      const user = await updateUserPassword(ctx.user.id, await passwordHash(input.newPassword), ctx.user.sessionVersion);
       if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "Perfil não encontrado." });
       ctx.res.clearCookie(COOKIE_NAME, { ...getSessionCookieOptions(ctx.req), maxAge: -1 });
+      await sendAuthEmail("password_changed", ctx.user.email ?? "", { name: ctx.user.name }, `password-changed-${ctx.user.id}-${user.sessionVersion}`);
+      await sendAuthEmail("security_alert", ctx.user.email ?? "", { name: ctx.user.name, detail: "A senha da sua conta foi alterada. Se você não reconhece esta ação, entre em contato com o suporte." }, `password-alert-${ctx.user.id}-${user.sessionVersion}`);
+      return { success: true as const };
+    }),
+    changeEmail: protectedProcedure.input(z.object({ email: z.string().trim().email().max(320), currentPassword: z.string().max(128).optional() })).mutation(async ({ ctx, input }) => {
+      const email = input.email.trim().toLowerCase();
+      if (email === ctx.user.email?.toLowerCase()) throw new TRPCError({ code: "BAD_REQUEST", message: "Este já é o e-mail atual da conta." });
+      if (ctx.user.passwordHash && (!input.currentPassword || !await checkPassword(input.currentPassword, ctx.user.passwordHash))) throw new TRPCError({ code: "UNAUTHORIZED", message: "A senha atual está incorreta." });
+      if (!await authRateAllowed(ctx, "change_email", String(ctx.user.id), 3)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas solicitações. Aguarde alguns minutos." });
+      if (await getUserByEmail(email)) return { success: true as const };
+      const pending = await setPendingUserEmail(ctx.user.id, email);
+      if (!pending) throw new TRPCError({ code: "NOT_FOUND", message: "Perfil não encontrado." });
+      await deliverEmailAction(pending, "email_change", "email_change", email);
+      if (ctx.user.email) await sendAuthEmail("security_alert", ctx.user.email, { name: ctx.user.name, detail: "Foi solicitada uma alteração de e-mail na sua conta. O novo endereço só será ativado após a confirmação. Se não foi você, altere sua senha." }, `email-change-request-${ctx.user.id}-${email}`);
       return { success: true as const };
     }),
     subscription: protectedProcedure.query(async ({ ctx }) => {
@@ -334,7 +450,7 @@ export const appRouter = router({
       const uploaded = await storagePut(`profiles/${ctx.user.id}/avatar`, data, mimeType);
       const user = await updateUserProfileImage(ctx.user.id, uploaded.key, uploaded.url);
       if (ctx.user.profileImageKey && ctx.user.profileImageKey !== uploaded.key) {
-        try { await storageRemove(ctx.user.profileImageKey); } catch (error) { console.warn("[Profile] Previous photo cleanup failed", error); }
+        try { await storageRemove(ctx.user.profileImageKey); } catch (error) { console.warn("[Profile] Previous photo cleanup failed"); }
       }
       return { user: user ? await toClientUser(user) : null };
     }),
@@ -342,7 +458,7 @@ export const appRouter = router({
       const previousKey = ctx.user.profileImageKey;
       const user = await updateUserProfileImage(ctx.user.id, null, null);
       if (previousKey) {
-        try { await storageRemove(previousKey); } catch (error) { console.warn("[Profile] Photo cleanup failed", error); }
+        try { await storageRemove(previousKey); } catch (error) { console.warn("[Profile] Photo cleanup failed"); }
       }
       return { user: user ? await toClientUser(user) : null };
     }),
@@ -352,6 +468,7 @@ export const appRouter = router({
     catalog: protectedProcedure.query(() => exerciseCatalog),
     list: protectedProcedure.query(async ({ ctx }) => (await getWorkoutPlans(ctx.user.id)).map(publicWorkoutPlan)),
     create: protectedProcedure.input(workoutPlanInputSchema.extend({ baseWorkoutId: z.enum(["A", "B", "C", "D"]).nullable().optional(), source: z.enum(["manual", "ai", "customized", "day5"]).default("manual") })).mutation(async ({ ctx, input }) => {
+      if (input.source === "day5") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "O quinto dia permanece pausado." });
       const { exercises, ...details } = input;
       const saved = await createWorkoutPlan({ ...details, userId: ctx.user.id, exercisesJson: JSON.stringify(exercises), notes: details.notes ?? null, baseWorkoutId: details.baseWorkoutId ?? null, source: details.baseWorkoutId ? "customized" : details.source });
       if (!saved) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível salvar o treino." });
@@ -419,7 +536,7 @@ export const appRouter = router({
       }
       await removeUserBodyPhotos(ctx.user.id);
       if (ctx.user.profileImageKey) {
-        try { await storageRemove(ctx.user.profileImageKey); } catch (error) { console.warn("[Profile] Account photo cleanup failed", error); }
+        try { await storageRemove(ctx.user.profileImageKey); } catch (error) { console.warn("[Profile] Account photo cleanup failed"); }
       }
       return deleteAllUserData(ctx.user.id);
     }),
@@ -490,7 +607,7 @@ export const appRouter = router({
           try {
             const oldKeys = JSON.parse(previousThisMonth.photoKeys) as Record<string, unknown>;
             await Promise.allSettled(Object.values(oldKeys).filter((key): key is string => typeof key === "string").map(key => storageRemove(key)));
-          } catch (cleanupError) { console.warn("[BodyAnalysis] Previous monthly photo cleanup failed", cleanupError); }
+          } catch (cleanupError) { console.warn("[BodyAnalysis] Previous monthly photo cleanup failed"); }
         }
         return { ...saved, analysis: result };
       } catch (error) {
@@ -547,11 +664,12 @@ export const appRouter = router({
         const parsed = z.object({ summary: z.string().min(15).max(1200), recommendations: z.array(z.string().min(3).max(300)).max(3) }).parse(JSON.parse(content));
         return { sufficient: true, source: "ai" as const, ...parsed };
       } catch (error) {
-        console.warn("[WeeklyWearable] AI analysis unavailable", error);
+        console.warn("[WeeklyWearable] AI analysis unavailable");
         return { sufficient: true, source: "rules" as const, summary: "A análise por IA está temporariamente indisponível. As métricas sincronizadas continuam disponíveis acima.", recommendations: [] as string[] };
       }
     }),
     analyzeDay5: protectedProcedure.input(z.object({ from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), language: z.enum(["pt", "en", "es"]) })).mutation(async ({ ctx, input }) => {
+      if (fifthDayPaused()) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "O quinto dia permanece pausado." });
       await requirePremium(ctx.user.id);
       const today = lisbonDate();
       const weekday = new Date(`${today}T12:00:00Z`).getUTCDay() || 7;
@@ -595,19 +713,18 @@ export const appRouter = router({
         }).parse(JSON.parse(content));
         return { ...parsed, exercises: parsed.exercises.map(exercise => ({ ...exercise, name: exerciseById[exercise.exerciseId].name, prescription: String(exercise.sets) + " × " + exercise.reps })), source: "ai" as const, historyWeeksConsidered: history.length };
       } catch (error) {
-        console.warn("[Day5] AI analysis unavailable, using data-only fallback", error);
+        console.warn("[Day5] AI analysis unavailable, using data-only fallback");
         return fallback();
       }
     }),
     requestWearableConnection: protectedProcedure.input(z.object({ provider: z.enum(["coros", "google_health", "garmin", "apple_health", "health_connect"]) })).mutation(async ({ ctx, input }) => {
       if (input.provider === "apple_health" || input.provider === "health_connect") {
-        await upsertWearableConnection({ userId: ctx.user.id, provider: input.provider, status: "authorization_required", lastSyncStatus: "authorization_required", lastSyncError: "Native bridge not installed." });
-        return { status: "authorization_required" as const, authorizationUrl: null, message: "Esta plataforma necessita de uma aplicação móvel com bridge nativo e permissões do sistema. Não há ligação web disponível." };
+        return { status: "integration_unavailable" as const, authorizationUrl: null, message: "Esta plataforma necessita de uma aplicação móvel com bridge nativo e permissões do sistema. Não há ligação web disponível." };
       }
       return beginWearableOAuth(ctx.user.id, input.provider);
     }),
     requestWearableSync: protectedProcedure.input(z.object({ provider: z.enum(["coros", "google_health", "garmin", "apple_health", "health_connect"]), from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })).mutation(async ({ ctx, input }) => {
-      if (input.provider === "apple_health" || input.provider === "health_connect") return { status: "authorization_required" as const, imported: 0, message: "É necessário um bridge nativo com permissão do utilizador." };
+      if (input.provider === "apple_health" || input.provider === "health_connect") return { status: "integration_unavailable" as const, imported: 0, message: "É necessário um bridge nativo com permissão do utilizador." };
       const today = lisbonDate();
       const from = input.from > today ? today : input.from;
       const to = input.to > today ? today : input.to;
