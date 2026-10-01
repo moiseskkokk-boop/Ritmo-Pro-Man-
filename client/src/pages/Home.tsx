@@ -1555,7 +1555,7 @@ type Day5Recommendation = {
   historyWeeksConsidered: number;
   exercises?: { exerciseId: ExerciseId; sets: number; reps: string; loadKg: number | null; restSeconds: number; note?: string | null; name: string; prescription: string }[];
 };
-type BodyPhotoSlot = "front";
+type BodyPhotoSlot = "front" | "left" | "back" | "right";
 
 export type HomeView = "training" | "analysis";
 
@@ -1581,10 +1581,8 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
   const [language, setLanguage] = useState<Language>(
     () => (localStorage.getItem("ritmo-mf-language") as Language) || "pt"
   );
-  const [photos, setPhotos] = useState<Record<string, string | null>>({
-    front: null,
-  });
-  const [photoFiles, setPhotoFiles] = useState<Record<BodyPhotoSlot, string | null>>({ front: null });
+  const [photos, setPhotos] = useState<Record<BodyPhotoSlot, string | null>>({ front: null, left: null, back: null, right: null });
+  const [photoFiles, setPhotoFiles] = useState<Record<BodyPhotoSlot, string | null>>({ front: null, left: null, back: null, right: null });
   const [bodyNotice, setBodyNotice] = useState("");
   const [installOpen, setInstallOpen] = useState(false);
   const [installAvailable, setInstallAvailable] = useState(false);
@@ -1668,7 +1666,12 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
   };
   const displayName =
     user?.name?.trim() || user?.email?.split("@")[0] || "Cliente";
-  const photoLabels = [{ key: "front", label: language === "en" ? "Front" : "Frente" }];
+  const photoLabels: { key: BodyPhotoSlot; label: string }[] = [
+    { key: "front", label: language === "en" ? "Front" : language === "es" ? "Frente" : "Frente" },
+    { key: "left", label: language === "en" ? "Left side" : language === "es" ? "Lado izquierdo" : "Lado esquerdo" },
+    { key: "back", label: language === "en" ? "Back" : language === "es" ? "Espalda" : "Costas" },
+    { key: "right", label: language === "en" ? "Right side" : language === "es" ? "Lado derecho" : "Lado direito" },
+  ];
   const totalDone = useMemo(
     () => Object.values(completed).filter(Boolean).length,
     [completed]
@@ -1749,7 +1752,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
     onSuccess: () => {
       localStorage.removeItem("ritmo-mf-consent");
       localStorage.removeItem("ritmo-mf-language");
-      setPhotos({ front: null });
+      setPhotos({ front: null, left: null, back: null, right: null });
       setCompleted({});
       setAssessmentDraft(emptyAssessment);
       window.setTimeout(() => logout(), 800);
@@ -1757,7 +1760,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
   });
   const resetProgressMutation = trpc.progress.resetMyProgress.useMutation({
     onSuccess: () => {
-      setPhotos({ front: null });
+      setPhotos({ front: null, left: null, back: null, right: null });
       setCompleted({});
       setSelectedWorkoutIds({});
       setSelectedId("");
@@ -1816,8 +1819,8 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
   const analyzeBodyMutation = trpc.progress.analyzeBody.useMutation({
     onSuccess: () => {
       setBodyNotice(language === "en" ? "Monthly analysis saved." : language === "es" ? "Análisis mensual guardado." : "Análise mensal guardada.");
-      setPhotoFiles({ front: null });
-      setPhotos({ front: null });
+      setPhotoFiles({ front: null, left: null, back: null, right: null });
+      setPhotos({ front: null, left: null, back: null, right: null });
       bodyAnalysisHistory.refetch();
     },
     onError: error => setBodyNotice(error.message),
@@ -2047,11 +2050,12 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
   };
   const analyzeBody = () => {
     const selected = photoFiles;
-    if (!user || !selected.front) return;
+    const missing = photoLabels.filter(slot => !selected[slot.key]).map(slot => slot.label);
+    if (!user || missing.length) { setBodyNotice(missing.length ? `Falta enviar: ${missing.join(", ")}.` : ""); return; }
     setBodyNotice("");
     analyzeBodyMutation.mutate({
       language,
-      photos: { front: selected.front! },
+      photos: { front: selected.front!, left: selected.left!, back: selected.back!, right: selected.right! },
     });
   };
 
@@ -2929,6 +2933,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
                 </div>
                 <span className="status-chip">{bodyAnalysisHistory.data?.length ? `${bodyAnalysisHistory.data.length} ${language === "pt" ? "meses guardados" : language === "es" ? "meses guardados" : "months saved"}` : c.analysisPending}</span>
               </div>
+              <p className="photo-disclaimer">Para uma comparação mais consistente, tire as quatro fotos no mesmo momento, com iluminação e distância semelhantes, corpo relaxado e sem pose. Homem: preferencialmente sem camisa e de short. Mulher: preferencialmente top desportivo e short.</p>
               <div className="photo-grid">
                 {photoLabels.map(slot => (
                   <label className="photo-slot" key={slot.key}>
@@ -2968,7 +2973,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
                     ? "Estimaciones basadas en imágenes, no mediciones. Este análisis no diagnostica lesiones, alergias, deficiencias ni enfermedades. Ante cualquier sospecha, consulta a un profesional cualificado."
                     : "Resultados estimados com base nas imagens e dados fornecidos, não são medições clínicas. A análise não diagnostica lesões, alergias, deficiências ou condições médicas. Se houver suspeita ou informação relevante, procure um profissional qualificado."}
               </p>
-              <button className="outline-btn" disabled={!user || !photoFiles.front || analyzeBodyMutation.isPending} onClick={analyzeBody}>
+              <button className="outline-btn" disabled={!user || analyzeBodyMutation.isPending} onClick={analyzeBody}>
                 <Sparkles size={14} /> {analyzeBodyMutation.isPending ? d.analyzing : language === "en" ? "Analyze this month" : language === "es" ? "Analizar este mes" : "Analisar este mês"}
               </button>
               {bodyNotice && <p role="status" className="photo-disclaimer">{bodyNotice}</p>}

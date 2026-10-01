@@ -165,20 +165,21 @@ describe("AI workout weekly limit", () => {
   });
 });
 
-describe("single frontal body photo with prior four-photo history", () => {
-  it("sends exactly one image to Gemini and stores only front; old history remains readable", async () => {
+describe("four-photo monthly body assessment", () => {
+  it("sends four identified images to Gemini and stores all four views; old history remains readable", async () => {
     state.llm.mockResolvedValue(answer(bodyResult));
-    await a().progress.analyzeBody({ language: "pt", photos: { front: photo } });
-    const images = state.llm.mock.calls[0][0].messages[1].content.filter((c: any) => c.type === "image_url"); expect(images).toHaveLength(1);
-    const [saved] = await state.database.select().from(bodyAnalyses); expect(Object.keys(JSON.parse(saved.photoKeys))).toEqual(["front"]);
+    await a().progress.analyzeBody({ language: "pt", photos: { front: photo, left: photo, back: photo, right: photo } });
+    const images = state.llm.mock.calls[0][0].messages[1].content.filter((c: any) => c.type === "image_url"); expect(images).toHaveLength(4);
+    const [saved] = await state.database.select().from(bodyAnalyses); expect(Object.keys(JSON.parse(saved.photoKeys)).sort()).toEqual(["back", "front", "left", "right"]);
     await state.database.insert(bodyAnalyses).values({ userId: 42, analysisMonth: "2026-01", photoKeys: JSON.stringify({ front: "old/front", back: "old/back", right: "old/right", left: "old/left" }), confidencePercent: 20, analysisJson: JSON.stringify(bodyResult) });
     expect(Object.keys((await a().progress.bodyAnalysisHistory()).find(r => r.analysisMonth === "2026-01")!.photos)).toHaveLength(4);
     await expect(a().progress.analyzeBody({ language: "pt", photos: {} } as any)).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
   it("replaces the monthly image using a fresh key so cleanup cannot delete the replacement", async () => {
     state.llm.mockResolvedValue(answer(bodyResult));
-    await a().progress.analyzeBody({ language: "pt", photos: { front: photo } }); const [first] = await state.database.select().from(bodyAnalyses);
-    await a().progress.analyzeBody({ language: "pt", photos: { front: photo } }); const [second] = await state.database.select().from(bodyAnalyses);
+    const photos = { front: photo, left: photo, back: photo, right: photo };
+    await a().progress.analyzeBody({ language: "pt", photos }); const [first] = await state.database.select().from(bodyAnalyses);
+    await a().progress.analyzeBody({ language: "pt", photos }); const [second] = await state.database.select().from(bodyAnalyses);
     const oldKey = JSON.parse(first.photoKeys).front; const newKey = JSON.parse(second.photoKeys).front;
     expect(oldKey).not.toBe(newKey); expect(state.remove).toHaveBeenCalledWith(oldKey); expect(state.remove).not.toHaveBeenCalledWith(newKey);
   });
