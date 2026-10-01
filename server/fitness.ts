@@ -320,7 +320,7 @@ export const fitnessRouter = router({
           activityDate: input.activityDate,
           snapshotJson: JSON.stringify(snapshot),
         })
-        .onDuplicateKeyUpdate({ set: { userId: ctx.user.id } });
+        .onConflictDoNothing({ target: [trainingSessions.userId, trainingSessions.activityDate] });
       return (
         await db
           .select()
@@ -389,7 +389,7 @@ export const fitnessRouter = router({
         await tx
           .insert(trainingSets)
           .values({ id, ...values })
-          .onDuplicateKeyUpdate({ set: values });
+          .onConflictDoUpdate({ target: trainingSets.id, set: values });
         return { success: true };
       });
     }),
@@ -507,7 +507,7 @@ export const fitnessRouter = router({
       await db
         .insert(fitnessPreferences)
         .values({ userId: ctx.user.id, dataJson: JSON.stringify(input) })
-        .onDuplicateKeyUpdate({ set: { dataJson: JSON.stringify(input) } });
+        .onConflictDoUpdate({ target: fitnessPreferences.userId, set: { dataJson: JSON.stringify(input) } });
       return { success: true };
     }),
   saveEntry: protectedProcedure

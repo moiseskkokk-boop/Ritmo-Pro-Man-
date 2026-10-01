@@ -1,5 +1,4 @@
 import { defineConfig } from "drizzle-kit";
-import { mysqlConnectionOptions } from "./server/_core/mysql-connection";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -8,9 +7,7 @@ if (!connectionString) {
 
 export default defineConfig({
   schema: "./drizzle/schema.ts",
-  out: "./drizzle",
-  dialect: "mysql",
-  dbCredentials: {
-    ...mysqlConnectionOptions(connectionString),
-  },
+  out: "./drizzle-pg",
+  dialect: "postgresql",
+  dbCredentials: { url: connectionString },
 });

@@ -1,9 +1,9 @@
 import { and, desc, eq, gt, gte, isNull, lte, sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
 import { BodyAnalysis, InsertUser, authEmailTokens, authRateLimits, bodyAnalyses, dailyLogs, mercadoPagoWebhookEvents, subscriptionPayments, subscriptionPlans, userSubscriptions, users, wearableActivities, wearableConnections, wearableOauthStates, wearableDailySummaries, weeklyAssessments, workoutPlans, trainingSessions } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { canClaimWebhookEvent } from "./mercadopago";
-import { mysqlConnectionOptions } from "./_core/mysql-connection";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -11,7 +11,7 @@ let _db: ReturnType<typeof drizzle> | null = null;
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle({ connection: mysqlConnectionOptions(process.env.DATABASE_URL) });
+      _db = drizzle(new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.DATABASE_URL.includes("localhost") ? undefined : { rejectUnauthorized: false } }));
     } catch {
       console.warn("[Database] Connection configuration unavailable");
       _db = null;
@@ -70,9 +70,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       updateSet.lastSignedIn = new Date();
     }
 
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
-      set: updateSet,
-    });
+    await db.insert(users).values(values).onConflictDoUpdate({ target: users.openId, set: updateSet });
   } catch (error) {
     console.error("[Database] Failed to upsert user:", error);
     throw error;
@@ -153,9 +151,9 @@ export async function consumeAuthRateLimit(rateKey: string, limit: number, windo
   const now = new Date();
   const cutoff = new Date(now.getTime() - windowMs);
   await db.delete(authRateLimits).where(lte(authRateLimits.windowStartedAt, new Date(now.getTime() - 48 * 60 * 60_000)));
-  await db.insert(authRateLimits).values({ rateKey, windowStartedAt: now, attempts: 1 }).onDuplicateKeyUpdate({ set: {
-    attempts: sql`IF(${authRateLimits.windowStartedAt} <= ${cutoff}, 1, ${authRateLimits.attempts} + 1)`,
-    windowStartedAt: sql`IF(${authRateLimits.windowStartedAt} <= ${cutoff}, ${now}, ${authRateLimits.windowStartedAt})`,
+  await db.insert(authRateLimits).values({ rateKey, windowStartedAt: now, attempts: 1 }).onConflictDoUpdate({ target: authRateLimits.rateKey, set: {
+    attempts: sql`CASE WHEN ${authRateLimits.windowStartedAt} <= ${cutoff} THEN 1 ELSE ${authRateLimits.attempts} + 1 END`,
+    windowStartedAt: sql`CASE WHEN ${authRateLimits.windowStartedAt} <= ${cutoff} THEN ${now} ELSE ${authRateLimits.windowStartedAt} END`,
   } });
   const rows = await db.select({ attempts: authRateLimits.attempts }).from(authRateLimits).where(eq(authRateLimits.rateKey, rateKey)).limit(1);
   return Boolean(rows[0] && rows[0].attempts <= limit);
@@ -209,8 +207,8 @@ export async function updateUserPassword(userId: number, passwordHash: string, e
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   const changed = await db.transaction(async tx => {
-    const result = await tx.update(users).set({ passwordHash, pendingEmail: null, sessionVersion: sql`${users.sessionVersion} + 1`, updatedAt: new Date() }).where(and(eq(users.id, userId), eq(users.sessionVersion, expectedSessionVersion)));
-    if (result[0].affectedRows !== 1) return false;
+    const changedRows = await tx.update(users).set({ passwordHash, pendingEmail: null, sessionVersion: sql`${users.sessionVersion} + 1`, updatedAt: new Date() }).where(and(eq(users.id, userId), eq(users.sessionVersion, expectedSessionVersion))).returning({ id: users.id });
+    if (changedRows.length !== 1) return false;
     await tx.update(authEmailTokens).set({ consumedAt: new Date() }).where(and(eq(authEmailTokens.userId, userId), isNull(authEmailTokens.consumedAt)));
     return true;
   });
@@ -284,7 +282,7 @@ export async function createPendingSubscription(input: {
   if (!db) throw new Error("Database unavailable");
   const now = new Date();
   await db.insert(subscriptionPlans).values({ code: input.planCode, name: input.planName, interval: "month", amount: input.amount, currency: input.currency, active: 1 })
-    .onDuplicateKeyUpdate({ set: { name: input.planName, amount: input.amount, currency: input.currency, active: 1, updatedAt: now } });
+    .onConflictDoUpdate({ target: subscriptionPlans.code, set: { name: input.planName, amount: input.amount, currency: input.currency, active: 1, updatedAt: now } });
   await db.insert(userSubscriptions).values({
     userId: input.userId, planCode: input.planCode, provider: "mercadopago", status: "pending",
     externalReference: input.externalReference, providerSubscriptionId: null, checkoutUrl: null,
@@ -328,7 +326,7 @@ export async function upsertSubscriptionPayment(input: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  await db.insert(subscriptionPayments).values(input).onDuplicateKeyUpdate({ set: {
+  await db.insert(subscriptionPayments).values(input).onConflictDoUpdate({ target: subscriptionPayments.providerPaymentId, set: {
     status: input.status, amount: input.amount ?? null, currency: input.currency ?? null,
     paidAt: input.paidAt ?? null, updatedAt: new Date(),
   } });
@@ -342,7 +340,7 @@ export async function beginMercadoPagoWebhookEvent(input: { eventKey: string; to
     // The unique-key upsert takes an InnoDB row lock. The following read/update
     // occurs in the same transaction, so simultaneous deliveries cannot both claim it.
     await tx.insert(mercadoPagoWebhookEvents).values({ ...input, status: "queued", processingAt: null })
-      .onDuplicateKeyUpdate({ set: { eventKey: input.eventKey } });
+      .onConflictDoNothing({ target: mercadoPagoWebhookEvents.eventKey });
     const rows = await tx.select().from(mercadoPagoWebhookEvents)
       .where(eq(mercadoPagoWebhookEvents.eventKey, input.eventKey)).for("update").limit(1);
     const event = rows[0];
@@ -385,7 +383,7 @@ export async function saveAssessment(input: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  await db.insert(weeklyAssessments).values(input).onDuplicateKeyUpdate({
+  await db.insert(weeklyAssessments).values(input).onConflictDoUpdate({ target: [weeklyAssessments.userId, weeklyAssessments.weekStart],
     set: {
       objective: input.objective, heightCm: input.heightCm,
       benchPressLevel: input.benchPressLevel, squatLevel: input.squatLevel,
@@ -416,8 +414,8 @@ export async function createWorkoutPlan(input: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  const result = await db.insert(workoutPlans).values(input);
-  const id = Number(result[0].insertId);
+  const inserted = await db.insert(workoutPlans).values(input).returning({ id: workoutPlans.id });
+  const id = inserted[0].id;
   const rows = await db.select().from(workoutPlans).where(and(eq(workoutPlans.id, id), eq(workoutPlans.userId, input.userId))).limit(1);
   return rows[0];
 }
@@ -435,8 +433,8 @@ export async function updateWorkoutPlan(userId: number, id: number, input: {
 export async function deleteWorkoutPlan(userId: number, id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  const result = await db.delete(workoutPlans).where(and(eq(workoutPlans.id, id), eq(workoutPlans.userId, userId)));
-  return Number(result[0].affectedRows) > 0;
+  const deleted = await db.delete(workoutPlans).where(and(eq(workoutPlans.id, id), eq(workoutPlans.userId, userId))).returning({ id: workoutPlans.id });
+  return deleted.length > 0;
 }
 
 export async function deleteAllUserData(userId: number) {
@@ -481,7 +479,7 @@ export async function getBodyAnalysisHistory(userId: number, limit = 12) {
 export async function saveBodyAnalysis(input: Omit<BodyAnalysis, "id" | "createdAt" | "updatedAt">) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  await db.insert(bodyAnalyses).values(input).onDuplicateKeyUpdate({ set: {
+  await db.insert(bodyAnalyses).values(input).onConflictDoUpdate({ target: [bodyAnalyses.userId, bodyAnalyses.analysisMonth], set: {
     objective: input.objective, photoKeys: input.photoKeys,
     bodyFatEstimatePercent: input.bodyFatEstimatePercent,
     confidencePercent: input.confidencePercent, analysisJson: input.analysisJson,
@@ -516,7 +514,7 @@ export async function saveDailyLog(input: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  await db.insert(dailyLogs).values(input).onDuplicateKeyUpdate({
+  await db.insert(dailyLogs).values(input).onConflictDoUpdate({ target: [dailyLogs.userId, dailyLogs.activityDate],
     set: {
       workoutId: input.workoutId ?? null, completedCount: input.completedCount,
       completedExercises: input.completedExercises ?? null,
@@ -553,7 +551,7 @@ export async function upsertWearableConnection(input: {
   if (input.lastSyncedAt !== undefined) set.lastSyncedAt = input.lastSyncedAt;
   if (input.lastSyncStatus !== undefined) set.lastSyncStatus = input.lastSyncStatus;
   if (input.lastSyncError !== undefined) set.lastSyncError = input.lastSyncError;
-  await db.insert(wearableConnections).values(input).onDuplicateKeyUpdate({ set });
+  await db.insert(wearableConnections).values(input).onConflictDoUpdate({ target: [wearableConnections.userId, wearableConnections.provider], set });
   const rows = await db.select().from(wearableConnections).where(and(eq(wearableConnections.userId, input.userId), eq(wearableConnections.provider, input.provider))).limit(1);
   return rows[0];
 }
@@ -588,7 +586,7 @@ export async function saveWearableTokens(input: {
     userId: input.userId, provider: input.provider, status: "connected", connectedAt: new Date(),
     tokenPayloadEncrypted: input.tokenPayloadEncrypted, tokenExpiresAt: input.tokenExpiresAt,
     grantedScopes: input.grantedScopes, timeZone: input.timeZone, lastSyncStatus: "never_synced",
-  }).onDuplicateKeyUpdate({ set: {
+  }).onConflictDoUpdate({ target: [wearableConnections.userId, wearableConnections.provider], set: {
     status: "connected", connectedAt: new Date(), tokenPayloadEncrypted: input.tokenPayloadEncrypted,
     tokenExpiresAt: input.tokenExpiresAt, grantedScopes: input.grantedScopes,
     timeZone: input.timeZone, lastSyncStatus: "never_synced", lastSyncError: null, updatedAt: new Date(),
@@ -612,7 +610,7 @@ export async function saveWearableDailySummary(input: {
   const row = { ...input, syncedAt: new Date() };
   const set: Record<string, unknown> = { syncedAt: new Date(), updatedAt: new Date() };
   for (const [key, value] of Object.entries(input)) if (value !== undefined && value !== null && key !== "userId" && key !== "provider" && key !== "activityDate") set[key] = value;
-  await db.insert(wearableDailySummaries).values(row).onDuplicateKeyUpdate({ set });
+  await db.insert(wearableDailySummaries).values(row).onConflictDoUpdate({ target: [wearableDailySummaries.userId, wearableDailySummaries.provider, wearableDailySummaries.activityDate], set });
 }
 
 export async function getWearableDailySummaries(userId: number, from: string, to: string) {
@@ -659,7 +657,7 @@ export async function ingestWearableActivity(input: {
     const value = input[key];
     if (value !== undefined && value !== null) set[key] = value;
   }
-  await db.insert(wearableActivities).values(input).onDuplicateKeyUpdate({ set });
+  await db.insert(wearableActivities).values(input).onConflictDoUpdate({ target: [wearableActivities.userId, wearableActivities.provider, wearableActivities.externalId], set });
   const rows = await db.select().from(wearableActivities).where(and(eq(wearableActivities.userId, input.userId), eq(wearableActivities.provider, input.provider), eq(wearableActivities.externalId, input.externalId))).limit(1);
   return rows[0];
 }
