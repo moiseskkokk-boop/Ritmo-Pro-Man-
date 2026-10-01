@@ -438,7 +438,7 @@ const ui = {
     simple: "/ SIMPLES ASSIM",
     consistency: "Constância antes de tudo.",
     howLead:
-      "O Ritmo Pro Man transforma o treino em uma pequena vitória por vez. Você vê, faz e confirma.",
+      "O Ritmo Pro transforma o treino em uma pequena vitória por vez. Você vê, faz e confirma.",
     chooseDay: "Escolha o dia",
     chooseLead: "Abra a aba do treino que combina com sua agenda.",
     seeMove: "Veja o movimento",
@@ -467,7 +467,7 @@ const ui = {
     insufficient:
       "Quando houver fotos insuficientes, iluminação ruim, postura inconsistente ou falta de medidas, a confiança será reduzida e o Dia 5 não será liberado automaticamente.",
     consent1:
-      "O Ritmo Pro Man utiliza seus registros de treino, medidas e imagens enviadas para criar uma experiência personalizada. As análises são informativas e não substituem profissionais qualificados.",
+      "O Ritmo Pro utiliza seus registros de treino, medidas e imagens enviadas para criar uma experiência personalizada. As análises são informativas e não substituem profissionais qualificados.",
     consent2:
       "Informe corretamente dores, lesões, limitações físicas, condições de saúde, restrições alimentares e alergias. Se sentir dor ou não tiver segurança para executar um exercício, interrompa o movimento e procure o instrutor da academia ou um profissional habilitado.",
     consent3:
@@ -492,7 +492,7 @@ const ui = {
     simple: "/ THIS SIMPLE",
     consistency: "Consistency before everything.",
     howLead:
-      "Ritmo Pro Man turns training into one small win at a time. See it, do it and confirm it.",
+      "Ritmo Pro turns training into one small win at a time. See it, do it and confirm it.",
     chooseDay: "Choose the day",
     chooseLead: "Open the workout tab that fits your schedule.",
     seeMove: "See the movement",
@@ -520,7 +520,7 @@ const ui = {
     insufficient:
       "When photos are insufficient, lighting is poor, posture is inconsistent or measurements are missing, confidence is reduced and Day 5 is not released automatically.",
     consent1:
-      "Ritmo Pro Man uses your training records, measurements and submitted images to create a personalized experience. Analyses are informational and do not replace qualified professionals.",
+      "Ritmo Pro uses your training records, measurements and submitted images to create a personalized experience. Analyses are informational and do not replace qualified professionals.",
     consent2:
       "Accurately report pain, injuries, physical limitations, health conditions, dietary restrictions and allergies. If you feel pain or cannot safely perform an exercise, stop and seek guidance from your gym instructor or a qualified professional.",
     consent3:
@@ -545,7 +545,7 @@ const ui = {
     simple: "/ ASÍ DE SIMPLE",
     consistency: "Constancia antes que todo.",
     howLead:
-      "Ritmo Pro Man convierte el entrenamiento en una pequeña victoria cada vez. Mira, haz y confirma.",
+      "Ritmo Pro convierte el entrenamiento en una pequeña victoria cada vez. Mira, haz y confirma.",
     chooseDay: "Elige el día",
     chooseLead: "Abre la pestaña del entrenamiento que encaja con tu agenda.",
     seeMove: "Mira el movimiento",
@@ -574,7 +574,7 @@ const ui = {
     insufficient:
       "Si hay pocas fotos, mala iluminación, postura inconsistente o faltan medidas, la confianza se reduce y el Día 5 no se libera automáticamente.",
     consent1:
-      "Ritmo Pro Man utiliza tus registros de entrenamiento, medidas e imágenes enviadas para crear una experiencia personalizada. Los análisis son informativos y no sustituyen a profesionales cualificados.",
+      "Ritmo Pro utiliza tus registros de entrenamiento, medidas e imágenes enviadas para crear una experiencia personalizada. Los análisis son informativos y no sustituyen a profesionales cualificados.",
     consent2:
       "Informa correctamente sobre dolores, lesiones, limitaciones físicas, condiciones de salud, restricciones alimentarias y alergias. Si sientes dolor o no puedes ejecutar un ejercicio con seguridad, detente y busca orientación de tu instructor o de un profesional cualificado.",
     consent3:
@@ -725,7 +725,7 @@ const localize = (value: string, language: Language) =>
   language === "pt" ? value : (translations[value]?.[language] ?? value);
 const installGuide = {
   pt: {
-    title: "Instalar o Ritmo Pro Man",
+    title: "Instalar o Ritmo Pro",
     intro: "Use o site como aplicativo no seu dispositivo.",
     mobile: "No celular",
     mobileText:
@@ -736,7 +736,7 @@ const installGuide = {
     close: "Fechar",
   },
   en: {
-    title: "Install Ritmo Pro Man",
+    title: "Install Ritmo Pro",
     intro: "Use the website like an app on your device.",
     mobile: "On your phone",
     mobileText:
@@ -747,7 +747,7 @@ const installGuide = {
     close: "Close",
   },
   es: {
-    title: "Instalar Ritmo Pro Man",
+    title: "Instalar Ritmo Pro",
     intro: "Usa el sitio como una aplicación en tu dispositivo.",
     mobile: "En el móvil",
     mobileText:
@@ -1323,7 +1323,7 @@ const deviceCopy = {
     importSuccess: "informações importadas; duplicados foram ignorados.",
     invalidImport:
       "Não foi possível ler o arquivo. Use CSV/JSON com a data da atividade.",
-    lead: "Importe somente métricas disponibilizadas pelo dispositivo. O Ritmo Pro Man vincula cada atividade à data real e não cria valores quando uma informação não existe.",
+    lead: "Importe somente métricas disponibilizadas pelo dispositivo. O Ritmo Pro vincula cada atividade à data real e não cria valores quando uma informação não existe.",
     connect: "Conectar dispositivo",
     sync: "Sincronizar dados",
     authorization: "Autorização oficial necessária",
@@ -1372,7 +1372,7 @@ const deviceCopy = {
         "Aplicativo auxiliar Android; o relógio deve sincronizar com Health Connect",
     },
     syncMessage: "Nenhuma métrica foi importada sem autorização oficial.",
-    realActivity: "/ ATIVIDADE REAL", connectWatch: "Conectar smartwatch", officialOnly: "Importe somente atividades fornecidas pela plataforma oficial. O Ritmo Pro Man não cria calorias, passos, frequência cardíaca ou outras métricas que o dispositivo não enviar.", privateAccount: "Privado por conta", disconnect: "Desligar", manualDisclaimer: "Os ficheiros importados são identificados como importação manual e não provam uma ligação oficial à plataforma selecionada.", syncError: "Erro na sincronização", connectedUnsynced: "Conectado · ainda não sincronizado", disconnected: "Desconectado", nativeBridge: "Bridge nativo necessário", accountOnly: "Os dados ficam vinculados somente à sua conta.", syncedSources: "Fontes de dados sincronizados", activeCalories: "Calorias ativas", totalCalories: "Calorias totais", analyzeAI: "Analisar semana com IA", weeklyAnalysis: "Análise semanal", insufficient: "Dados insuficientes", weekHistory: "/ HISTÓRICO DA SEMANA", dailyActivity: "Atividade diária", activitySingular: "atividade(s)", manualImport: "importação manual", locale: "pt-BR",
+    realActivity: "/ ATIVIDADE REAL", connectWatch: "Conectar smartwatch", officialOnly: "Importe somente atividades fornecidas pela plataforma oficial. O Ritmo Pro não cria calorias, passos, frequência cardíaca ou outras métricas que o dispositivo não enviar.", privateAccount: "Privado por conta", disconnect: "Desligar", manualDisclaimer: "Os ficheiros importados são identificados como importação manual e não provam uma ligação oficial à plataforma selecionada.", syncError: "Erro na sincronização", connectedUnsynced: "Conectado · ainda não sincronizado", disconnected: "Desconectado", nativeBridge: "Bridge nativo necessário", accountOnly: "Os dados ficam vinculados somente à sua conta.", syncedSources: "Fontes de dados sincronizados", activeCalories: "Calorias ativas", totalCalories: "Calorias totais", analyzeAI: "Analisar semana com IA", weeklyAnalysis: "Análise semanal", insufficient: "Dados insuficientes", weekHistory: "/ HISTÓRICO DA SEMANA", dailyActivity: "Atividade diária", activitySingular: "atividade(s)", manualImport: "importação manual", locale: "pt-BR",
   },
   en: {
     kicker: "/ DEVICES & REAL DATA",
@@ -1391,7 +1391,7 @@ const deviceCopy = {
     importSuccess: "information imported; duplicates were ignored.",
     invalidImport:
       "The file could not be read. Use CSV/JSON with an activity date.",
-    lead: "Import only metrics provided by the device. Ritmo Pro Man links every activity to its real date and never creates a value when information is unavailable.",
+    lead: "Import only metrics provided by the device. Ritmo Pro links every activity to its real date and never creates a value when information is unavailable.",
     connect: "Connect device",
     sync: "Sync data",
     authorization: "Official authorization required",
@@ -1440,7 +1440,7 @@ const deviceCopy = {
         "Native Android companion app; the watch must sync to Health Connect",
     },
     syncMessage: "No metric was imported without official authorization.",
-    realActivity: "/ REAL ACTIVITY", connectWatch: "Connect smartwatch", officialOnly: "Import only activities supplied by the official platform. Ritmo Pro Man does not create calories, steps, heart rate, or other metrics the device does not send.", privateAccount: "Private by account", disconnect: "Disconnect", manualDisclaimer: "Imported files are identified as manual imports and do not prove an official connection to the selected platform.", syncError: "Sync error", connectedUnsynced: "Connected · not synced yet", disconnected: "Disconnected", nativeBridge: "Native bridge required", accountOnly: "Data remains linked only to your account.", syncedSources: "Synchronized data sources", activeCalories: "Active calories", totalCalories: "Total calories", analyzeAI: "Analyze week with AI", weeklyAnalysis: "Weekly analysis", insufficient: "Insufficient data", weekHistory: "/ WEEK HISTORY", dailyActivity: "Daily activity", activitySingular: "activity(ies)", manualImport: "manual import", locale: "en-US",
+    realActivity: "/ REAL ACTIVITY", connectWatch: "Connect smartwatch", officialOnly: "Import only activities supplied by the official platform. Ritmo Pro does not create calories, steps, heart rate, or other metrics the device does not send.", privateAccount: "Private by account", disconnect: "Disconnect", manualDisclaimer: "Imported files are identified as manual imports and do not prove an official connection to the selected platform.", syncError: "Sync error", connectedUnsynced: "Connected · not synced yet", disconnected: "Disconnected", nativeBridge: "Native bridge required", accountOnly: "Data remains linked only to your account.", syncedSources: "Synchronized data sources", activeCalories: "Active calories", totalCalories: "Total calories", analyzeAI: "Analyze week with AI", weeklyAnalysis: "Weekly analysis", insufficient: "Insufficient data", weekHistory: "/ WEEK HISTORY", dailyActivity: "Daily activity", activitySingular: "activity(ies)", manualImport: "manual import", locale: "en-US",
   },
   es: {
     kicker: "/ DISPOSITIVOS Y DATOS REALES",
@@ -1459,7 +1459,7 @@ const deviceCopy = {
     importSuccess: "información importada; los duplicados fueron ignorados.",
     invalidImport:
       "No se pudo leer el archivo. Usa CSV/JSON con la fecha de actividad.",
-    lead: "Importa solo las métricas disponibles en el dispositivo. Ritmo Pro Man vincula cada actividad a su fecha real y nunca crea valores cuando falta información.",
+    lead: "Importa solo las métricas disponibles en el dispositivo. Ritmo Pro vincula cada actividad a su fecha real y nunca crea valores cuando falta información.",
     connect: "Conectar dispositivo",
     sync: "Sincronizar datos",
     authorization: "Autorización oficial necesaria",
@@ -1508,7 +1508,7 @@ const deviceCopy = {
         "App nativa Android; el reloj debe sincronizar con Health Connect",
     },
     syncMessage: "No se importó ninguna métrica sin autorización oficial.",
-    realActivity: "/ ACTIVIDAD REAL", connectWatch: "Conectar smartwatch", officialOnly: "Importa solo actividades proporcionadas por la plataforma oficial. Ritmo Pro Man no crea calorías, pasos, frecuencia cardíaca ni otras métricas que el dispositivo no envíe.", privateAccount: "Privado por cuenta", disconnect: "Desconectar", manualDisclaimer: "Los archivos importados se identifican como importación manual y no demuestran una conexión oficial con la plataforma seleccionada.", syncError: "Error de sincronización", connectedUnsynced: "Conectado · aún no sincronizado", disconnected: "Desconectado", nativeBridge: "Puente nativo necesario", accountOnly: "Los datos quedan vinculados solo a tu cuenta.", syncedSources: "Fuentes de datos sincronizados", activeCalories: "Calorías activas", totalCalories: "Calorías totales", analyzeAI: "Analizar semana con IA", weeklyAnalysis: "Análisis semanal", insufficient: "Datos insuficientes", weekHistory: "/ HISTORIAL DE LA SEMANA", dailyActivity: "Actividad diaria", activitySingular: "actividad(es)", manualImport: "importación manual", locale: "es-ES",
+    realActivity: "/ ACTIVIDAD REAL", connectWatch: "Conectar smartwatch", officialOnly: "Importa solo actividades proporcionadas por la plataforma oficial. Ritmo Pro no crea calorías, pasos, frecuencia cardíaca ni otras métricas que el dispositivo no envíe.", privateAccount: "Privado por cuenta", disconnect: "Desconectar", manualDisclaimer: "Los archivos importados se identifican como importación manual y no demuestran una conexión oficial con la plataforma seleccionada.", syncError: "Error de sincronización", connectedUnsynced: "Conectado · aún no sincronizado", disconnected: "Desconectado", nativeBridge: "Puente nativo necesario", accountOnly: "Los datos quedan vinculados solo a tu cuenta.", syncedSources: "Fuentes de datos sincronizados", activeCalories: "Calorías activas", totalCalories: "Calorías totales", analyzeAI: "Analizar semana con IA", weeklyAnalysis: "Análisis semanal", insufficient: "Datos insuficientes", weekHistory: "/ HISTORIAL DE LA SEMANA", dailyActivity: "Actividad diaria", activitySingular: "actividad(es)", manualImport: "importación manual", locale: "es-ES",
   },
 } as const;
 
@@ -2130,10 +2130,10 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
   return (
     <div className={`ritmo-page ${isDark ? "theme-dark" : ""}`} id="top">
       <header className="site-header">
-        <a className="brand" href="#top" aria-label="Ritmo Pro Man início">
+        <a className="brand" href="#top" aria-label="Ritmo Pro início">
           <span className="brand-mark">R</span>
           <span>
-            <strong>Ritmo Pro Man</strong>
+            <strong>Ritmo Pro</strong>
             <small>TREINO / 04X</small>
           </span>
         </a>
@@ -3036,7 +3036,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
           <div className="brand footer-brand">
             <span className="brand-mark">R</span>
             <span>
-              <strong>Ritmo Pro Man</strong>
+              <strong>Ritmo Pro</strong>
               <small>TREINO / 04X SEMANA</small>
             </span>
           </div>
@@ -3060,7 +3060,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
                 src={imageFor(openExercise)}
                 alt={localize(openExercise.name, language)}
               />
-              <span>Ritmo Pro Man · EXECUÇÃO</span>
+              <span>Ritmo Pro · EXECUÇÃO</span>
             </div>
             <p className="eyebrow green-text">
               {t.demonstration} ·{" "}
@@ -3136,7 +3136,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
             >
               <X size={18} />
             </button>
-            <p className="eyebrow green-text">Ritmo Pro Man</p>
+            <p className="eyebrow green-text">Ritmo Pro</p>
             <h2>{install.title}</h2>
             <p>{install.intro}</p>
             {installAvailable && (

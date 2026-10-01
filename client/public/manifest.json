@@ -1,9 +1,9 @@
 {
   "name": "Ritmo Pro",
   "short_name": "Ritmo Pro",
-  "description": "Treino 4x por semana para elevar sua performance e evoluir com constância.",
+  "description": "Plataforma Ritmo Pro com experiências Ritmo Man e Ritmo Woman.",
   "id": "/",
-  "start_url": "/dashboard",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#0b0d0c",
   "theme_color": "#0b0d0c",

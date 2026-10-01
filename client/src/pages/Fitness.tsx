@@ -1122,7 +1122,7 @@ export default function Fitness({
     <main className="fitness-page">
       <header className="fitness-header">
         <Link className="fitness-brand" href="/dashboard">
-          Ritmo Pro Man
+          Ritmo Pro
         </Link>
         <select
           aria-label="Idioma / Language / Idioma"
@@ -1160,7 +1160,7 @@ export default function Fitness({
           <p>{c.loading}</p>
         ) : !user ? (
           <section className={panel}>
-            <h1>Ritmo Pro Man</h1>
+            <h1>Ritmo Pro</h1>
             <p>{c.signInHelp}</p>
             <Link href="/login">{c.signIn} →</Link>
           </section>
