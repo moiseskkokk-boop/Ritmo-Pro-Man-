@@ -21,7 +21,7 @@ import { bodyAnalysisResultSchema, decodeBodyImage, parseBodyAnalysisResponse } 
 import { beginWearableOAuth, disconnectWearableAccount, syncWearable } from "./wearables";
 import type { User } from "../drizzle/schema";
 import { hasPremiumAccess, isMercadoPagoCheckoutUrl, makeUserExternalReference, MercadoPagoClient } from "./mercadopago";
-import { exerciseById, exerciseCatalog, exerciseIds } from "@shared/workouts";
+import { exerciseById, exerciseIds, catalogFor, assertExperienceExercises } from "@shared/workouts";
 import { sendAuthEmail } from "./auth-emails";
 
 async function toClientUser(user: User) {
@@ -381,23 +381,27 @@ export const appRouter = router({
   }),
 
   workouts: router({
-    catalog: protectedProcedure.query(() => exerciseCatalog),
-    list: protectedProcedure.query(async ({ ctx }) => (await getWorkoutPlans(ctx.user.id)).map(publicWorkoutPlan)),
+    catalog: protectedProcedure.query(({ ctx }) => catalogFor(ctx.user.experience ?? "man")),
+    list: protectedProcedure.query(async ({ ctx }) => (await getWorkoutPlans(ctx.user.id, ctx.user.experience ?? "man")).map(publicWorkoutPlan)),
     create: protectedProcedure.input(workoutPlanInputSchema.extend({ baseWorkoutId: z.enum(["A", "B", "C", "D"]).nullable().optional(), source: z.enum(["manual", "ai", "customized", "day5"]).default("manual") })).mutation(async ({ ctx, input }) => {
       if (input.source === "day5") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "O quinto dia permanece pausado." });
       const { exercises, ...details } = input;
-      const saved = await createWorkoutPlan({ ...details, userId: ctx.user.id, exercisesJson: JSON.stringify(exercises), notes: details.notes ?? null, baseWorkoutId: details.baseWorkoutId ?? null, source: details.baseWorkoutId ? "customized" : details.source });
+      try { assertExperienceExercises(exercises, ctx.user.experience ?? "man"); }
+      catch { throw new TRPCError({ code: "BAD_REQUEST", message: "Exercício não pertence a esta experiência." }); }
+      const saved = await createWorkoutPlan({ ...details, userId: ctx.user.id, experience: ctx.user.experience ?? "man", exercisesJson: JSON.stringify(exercises), notes: details.notes ?? null, baseWorkoutId: details.baseWorkoutId ?? null, source: details.baseWorkoutId ? "customized" : details.source });
       if (!saved) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível salvar o treino." });
       return publicWorkoutPlan(saved);
     }),
     update: protectedProcedure.input(workoutPlanInputSchema.extend({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
       const { id, exercises, ...details } = input;
-      const updated = await updateWorkoutPlan(ctx.user.id, id, { ...details, exercisesJson: JSON.stringify(exercises), notes: details.notes ?? null });
+      try { assertExperienceExercises(exercises, ctx.user.experience ?? "man"); }
+      catch { throw new TRPCError({ code: "BAD_REQUEST", message: "Exercício não pertence a esta experiência." }); }
+      const updated = await updateWorkoutPlan(ctx.user.id, id, { ...details, exercisesJson: JSON.stringify(exercises), notes: details.notes ?? null }, ctx.user.experience ?? "man");
       if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Treino não encontrado." });
       return publicWorkoutPlan(updated);
     }),
     remove: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
-      if (!await deleteWorkoutPlan(ctx.user.id, input.id)) throw new TRPCError({ code: "NOT_FOUND", message: "Treino não encontrado." });
+      if (!await deleteWorkoutPlan(ctx.user.id, input.id, ctx.user.experience ?? "man")) throw new TRPCError({ code: "NOT_FOUND", message: "Treino não encontrado." });
       return { success: true as const };
     }),
     generateWithAI: protectedProcedure.input(z.object({ objective: z.string().trim().min(2).max(80), focusGroup: z.string().trim().min(2).max(80), durationMinutes: z.number().int().min(10).max(180), availabilityDays: z.number().int().min(1).max(7), language: z.enum(["pt", "en", "es"]) })).mutation(async ({ ctx, input }) => {
@@ -410,21 +414,23 @@ export const appRouter = router({
       const from = fromDate.toISOString().slice(0, 10);
       const [assessment, week, daily, history, bodyHistory, savedPlans, sessionTraining] = await Promise.all([
         getCurrentAssessment(ctx.user.id, weekStart),
-        getWeeklyActivityAnalysis(ctx.user.id, weekStart, today, weekStart),
+        getWeeklyActivityAnalysis(ctx.user.id, weekStart, today, weekStart, ctx.user.experience ?? "man"),
         getDailyHistory(ctx.user.id, from, today),
         getAssessmentHistory(ctx.user.id, 6),
         getBodyAnalysisHistory(ctx.user.id, 2),
-        getWorkoutPlans(ctx.user.id),
-        getRecentTrainingContext(ctx.user.id, from, today),
+        getWorkoutPlans(ctx.user.id, ctx.user.experience ?? "man"),
+        getRecentTrainingContext(ctx.user.id, from, today, ctx.user.experience ?? "man"),
       ]);
       const body = bodyHistory[0] ? JSON.parse(bodyHistory[0].analysisJson) as unknown : null;
       const data = { requested: input, recentTrainingSessions: sessionTraining, currentAssessment: assessment ?? null, weeklyTrainingAndWearableData: week, recentDailyLogs: daily.map(row => ({ date: row.activityDate, workoutId: row.workoutId, completedCount: row.completedCount, cardioMinutes: row.cardioMinutes, recovery: row.recovery, waterLiters: row.waterLiters, mealsNote: row.mealsNote })), previousWeeklyAssessments: history, latestBodyAnalysis: body, priorCustomizations: savedPlans.slice(0, 8).map(plan => ({ name: plan.name, focusGroup: plan.focusGroup, source: plan.source, exercises: JSON.parse(plan.exercisesJson) })) };
       const response = await invokeLLM({ userId: ctx.user.id, feature: "workout_generation", maxTokens: 1800, response_format: { type: "json_object" }, messages: [
         { role: "system", content: `Crie um treino estruturado em ${input.language}. Use somente exerciseId presentes no catálogo enviado. Considere os dados reais fornecidos; null ou lista vazia significa indisponível, nunca invente desempenho, carga, smartwatch, fadiga ou recuperação. Só preencha loadKg se os dados registrarem carga correspondente; do contrário use null. Respeite objetivo, foco, tempo e disponibilidade; evite recomendar volume alto quando recuperação registrada for baixa. Não faça diagnóstico. Retorne apenas JSON com name (string), objective (string), focusGroup (string), durationMinutes (integer), notes (string), exercises (array de 4 a 12 itens com exerciseId, sets (integer 1-10), reps (string curta), loadKg (number ou null), restSeconds (integer 0-900), note (string ou null)).` },
-        { role: "user", content: JSON.stringify({ data, exerciseCatalog }) },
+        { role: "user", content: JSON.stringify({ data, experience: ctx.user.experience ?? "man", exerciseCatalog: catalogFor(ctx.user.experience ?? "man") }) },
       ] });
       try {
-        return workoutPlanInputSchema.parse(JSON.parse(response.choices[0]?.message.content ?? ""));
+        const plan = workoutPlanInputSchema.parse(JSON.parse(response.choices[0]?.message.content ?? ""));
+        assertExperienceExercises(plan.exercises, ctx.user.experience ?? "man");
+        return plan;
       } catch {
         throw new TRPCError({ code: "BAD_GATEWAY", message: "A IA não conseguiu montar um treino válido agora. Tente novamente." });
       }
@@ -490,7 +496,7 @@ export const appRouter = router({
       const [assessment, daily, weekly, history] = await Promise.all([
         getCurrentAssessment(ctx.user.id, weekStart),
         getDailyHistory(ctx.user.id, monthStart, today),
-        getWeeklyActivityAnalysis(ctx.user.id, weekStart, today, weekStart),
+        getWeeklyActivityAnalysis(ctx.user.id, weekStart, today, weekStart, ctx.user.experience ?? "man"),
         getBodyAnalysisHistory(ctx.user.id, 3),
       ]);
       const previousThisMonth = history.find(row => row.analysisMonth === today.slice(0, 7));
@@ -574,7 +580,7 @@ export const appRouter = router({
     })).mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Banco indisponível." });
-      const [session] = await db.select().from(trainingSessions).where(and(eq(trainingSessions.id, input.sessionId), eq(trainingSessions.userId, ctx.user.id)));
+      const [session] = await db.select().from(trainingSessions).where(and(eq(trainingSessions.id, input.sessionId), eq(trainingSessions.userId, ctx.user.id), eq(trainingSessions.experience, ctx.user.experience ?? "man")));
       if (!session) throw new TRPCError({ code: "NOT_FOUND", message: "Sessão não encontrada." });
       if (session.status !== "completed") assertToday(session.activityDate);
 
@@ -595,7 +601,7 @@ export const appRouter = router({
     }).refine(input => Boolean(input.dataUrl) !== Boolean(input.photoKey), "Envie uma foto ou use a foto desta sessão.")).mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Banco indisponível." });
-      const [session] = await db.select().from(trainingSessions).where(and(eq(trainingSessions.id, input.sessionId), eq(trainingSessions.userId, ctx.user.id)));
+      const [session] = await db.select().from(trainingSessions).where(and(eq(trainingSessions.id, input.sessionId), eq(trainingSessions.userId, ctx.user.id), eq(trainingSessions.experience, ctx.user.experience ?? "man")));
       if (!session) throw new TRPCError({ code: "NOT_FOUND", message: "Sessão não encontrada." });
       if (session.status !== "completed") assertToday(session.activityDate);
 
@@ -607,7 +613,7 @@ export const appRouter = router({
       const photoKey = uploaded?.key ?? input.photoKey!;
       try {
         await db.transaction(async tx => {
-          const [current] = await tx.select().from(trainingSessions).where(and(eq(trainingSessions.id, input.sessionId), eq(trainingSessions.userId, ctx.user.id))).for("update");
+          const [current] = await tx.select().from(trainingSessions).where(and(eq(trainingSessions.id, input.sessionId), eq(trainingSessions.userId, ctx.user.id), eq(trainingSessions.experience, ctx.user.experience ?? "man"))).for("update");
           if (!current) throw new TRPCError({ code: "NOT_FOUND", message: "Sessão não encontrada." });
           if (current.status !== "completed") assertToday(current.activityDate);
           const previous = current.smartwatchJson ? JSON.parse(current.smartwatchJson) : null;
@@ -629,10 +635,10 @@ export const appRouter = router({
     wearableActivities: protectedProcedure.input(z.object({ from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })).query(({ ctx, input }) =>
       getWearableActivities(ctx.user.id, input.from, input.to)),
     weeklyActivityAnalysis: protectedProcedure.input(z.object({ from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })).query(({ ctx, input }) =>
-      getWeeklyActivityAnalysis(ctx.user.id, input.from, input.to, input.weekStart)),
+      getWeeklyActivityAnalysis(ctx.user.id, input.from, input.to, input.weekStart, ctx.user.experience ?? "man")),
     analyzeWeeklyWearable: protectedProcedure.input(z.object({ from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), language: z.enum(["pt", "en", "es"]) })).mutation(async ({ ctx, input }) => {
       await requirePremium(ctx.user.id);
-      const analysis = await getWeeklyActivityAnalysis(ctx.user.id, input.from, input.to, input.weekStart);
+      const analysis = await getWeeklyActivityAnalysis(ctx.user.id, input.from, input.to, input.weekStart, ctx.user.experience ?? "man");
       if (!analysis.wearableDataAvailable || !analysis.metricsSufficient) return { sufficient: false, source: "rules" as const, summary: "Ainda não há dados suficientes sincronizados do wearable para comparar a semana. Sincronize novamente após usar o dispositivo.", recommendations: [] as string[] };
       const [assessment, daily] = await Promise.all([getCurrentAssessment(ctx.user.id, input.weekStart), getDailyHistory(ctx.user.id, input.from, input.to)]);
       try {
@@ -657,7 +663,7 @@ export const appRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "The optional fifth-day plan is available from Friday for the current training week only." });
       }
       const [analysis, assessment, history, daily, bodyHistory] = await Promise.all([
-        getWeeklyActivityAnalysis(ctx.user.id, input.from, input.to, input.weekStart),
+        getWeeklyActivityAnalysis(ctx.user.id, input.from, input.to, input.weekStart, ctx.user.experience ?? "man"),
         getCurrentAssessment(ctx.user.id, input.weekStart),
         getAssessmentHistory(ctx.user.id, 12),
         getDailyHistory(ctx.user.id, input.from, input.to),
@@ -681,7 +687,7 @@ export const appRouter = router({
           feature: "day5",
           messages: [
             { role: "system", content: "Você é o motor de decisão do quinto dia, que é opcional e nunca substitui os quatro treinos principais. Use apenas os dados JSON reais. Avalie objetivo, histórico, treinos concluídos, desempenho, recuperação, cardio, wearable conectado, análise corporal, avaliação semanal, hidratação e alimentação quando houver dados. Null/lista vazia significa indisponível; diga quando a informação for insuficiente e não invente valores. Se recuperação/fadiga estiverem baixas, recomende repouso/recuperação e retorne exercises vazio. Se recomendar sessão, crie 2 a 5 exercícios de baixa interferência usando somente exerciseId do catálogo enviado. Não sugira carga sem registro correspondente; use null. Use o idioma informado. JSON: recommendation (recovery, mobility, core, stability, conditioning, technical, complementary ou rest), rationale, confidence (low/medium/high), exercises (exerciseId, sets, reps, loadKg, restSeconds, note). Exercícios devem ser um array vazio para descanso." },
-          { role: "user", content: JSON.stringify({ language: input.language, week: analysis, assessment, dailyLogs: daily.map(log => ({ date: log.activityDate, meals: log.mealsNote, waterLiters: log.waterLiters, cardioMinutes: log.cardioMinutes, recovery: log.recovery, workoutId: log.workoutId, completedCount: log.completedCount })), latestBodyAnalysis: bodyHistory[0] ? JSON.parse(bodyHistory[0].analysisJson) as unknown : null, previousAssessments: history.filter(row => row.weekStart !== input.weekStart).slice(0, 6).map(row => ({ weekStart: row.weekStart, objective: row.objective, cardio: row.cardio, sleep: row.sleep, recovery: row.recovery, fatigue: row.fatigue, benchPressLevel: row.benchPressLevel, squatLevel: row.squatLevel })), exerciseCatalog }) },
+          { role: "user", content: JSON.stringify({ language: input.language, week: analysis, assessment, dailyLogs: daily.map(log => ({ date: log.activityDate, meals: log.mealsNote, waterLiters: log.waterLiters, cardioMinutes: log.cardioMinutes, recovery: log.recovery, workoutId: log.workoutId, completedCount: log.completedCount })), latestBodyAnalysis: bodyHistory[0] ? JSON.parse(bodyHistory[0].analysisJson) as unknown : null, previousAssessments: history.filter(row => row.weekStart !== input.weekStart).slice(0, 6).map(row => ({ weekStart: row.weekStart, objective: row.objective, cardio: row.cardio, sleep: row.sleep, recovery: row.recovery, fatigue: row.fatigue, benchPressLevel: row.benchPressLevel, squatLevel: row.squatLevel })), exerciseCatalog: catalogFor(ctx.user.experience ?? "man") }) },
           ],
           response_format: { type: "json_object" },
         });

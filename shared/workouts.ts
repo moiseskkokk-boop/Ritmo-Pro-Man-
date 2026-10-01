@@ -1,4 +1,4 @@
-export const exerciseCatalog = [
+export const manExerciseCatalog = [
   { id: "A01", name: "Supino Banco Reto Halter", group: "Peito" },
   { id: "A02", name: "Crucifixo Fly Máquina", group: "Peito" },
   { id: "A03", name: "Supino Banco Inclinado Máquina", group: "Peito" },
@@ -33,6 +33,38 @@ export const exerciseCatalog = [
   { id: "D08", name: "Abdominal Parcial Solo", group: "Abdômen" },
 ] as const;
 
+export const womanExerciseCatalog = [
+  {"id": "W01", "name": "Agachamento no Smith", "group": "Pernas", "image": "/exercises-woman/agachamento-smith_bb5ce4a7.png"},
+  {"id": "W02", "name": "Leg Press 45°", "group": "Pernas", "image": "/exercises-woman/leg-press-45_cc84911a.png"},
+  {"id": "W03", "name": "Hip Thrust", "group": "Glúteos", "image": "/exercises-woman/hip-thrust_d11d5899.png"},
+  {"id": "W04", "name": "Agachamento Búlgaro", "group": "Pernas", "image": "/exercises-woman/agachamento-bulgaro_891cf377.png"},
+  {"id": "W05", "name": "Cadeira Extensora", "group": "Pernas", "image": "/exercises-woman/cadeira-extensora_e8ae9141.png"},
+  {"id": "W06", "name": "Cadeira Abdutora", "group": "Glúteos", "image": "/exercises-woman/cadeira-abdutora_52fa0f21.png"},
+  {"id": "W07", "name": "Cadeira Adutora", "group": "Pernas", "image": "/exercises-woman/cadeira-adutora_62799837.png"},
+  {"id": "W08", "name": "Puxada Frontal na Polia", "group": "Costas", "image": "/exercises-woman/puxada-frontal-polia_aa0c6299.png"},
+  {"id": "W09", "name": "Remada Sentada na Polia", "group": "Costas", "image": "/exercises-woman/remada-sentada-polia_714e812f.png"},
+  {"id": "W10", "name": "Supino com Halteres", "group": "Peito", "image": "/exercises-woman/supino-halteres_734a389b.png"},
+  {"id": "W11", "name": "Elevação Lateral", "group": "Ombros", "image": "/exercises-woman/elevacao-lateral-halteres_a93bd4f5.png"},
+  {"id": "W12", "name": "Rosca Direta", "group": "Bíceps", "image": "/exercises-woman/rosca-direta-barra_7880a996.png"},
+  {"id": "W13", "name": "Tríceps na Polia", "group": "Tríceps", "image": "/exercises-woman/triceps-polia-corda_6dccee9b.png"},
+  {"id": "W14", "name": "Stiff com Barra", "group": "Pernas", "image": "/exercises-woman/stiff-barra_2caca81b.png"},
+  {"id": "W15", "name": "Mesa Flexora", "group": "Pernas", "image": "/exercises-woman/mesa-flexora_9290c436.png"},
+  {"id": "W16", "name": "Passada / Afundo", "group": "Pernas", "image": "/exercises-woman/passada-afundo_0547620e.png"},
+  {"id": "W17", "name": "Remada Cavalinho", "group": "Costas", "image": "/exercises-woman/remada-cavalinho_171e62d1.png"},
+  {"id": "W18", "name": "Puxada Fechada Supinada", "group": "Costas", "image": "/exercises-woman/puxada-fechada-supinada_d6ec89e1.png"},
+  {"id": "W19", "name": "Supino Inclinado", "group": "Peito", "image": "/exercises-woman/supino-inclinado-halteres_9231f4ce.png"},
+  {"id": "W20", "name": "Desenvolvimento de Ombros", "group": "Ombros", "image": "/exercises-woman/desenvolvimento-ombros_37111aae.png"},
+  {"id": "W21", "name": "Rosca Martelo", "group": "Bíceps", "image": "/exercises-woman/rosca-martelo-halteres_9d724415.png"},
+  {"id": "W22", "name": "Tríceps Francês", "group": "Tríceps", "image": "/exercises-woman/triceps-frances-halter_f733c1b9.png"},
+] as const;
+export type Experience = "man" | "woman";
+export const exerciseCatalog = [...manExerciseCatalog, ...womanExerciseCatalog] as const;
+export const catalogFor = (experience: Experience = "man") => experience === "woman" ? womanExerciseCatalog : manExerciseCatalog;
+export function assertExperienceExercises(exercises: { exerciseId: string }[], experience: Experience) {
+  const allowed = new Set<string>(catalogFor(experience).map(e => e.id));
+  if (exercises.some(e => !allowed.has(e.exerciseId))) throw new Error("Exercício não pertence a esta experiência.");
+}
+
 export type ExerciseId = (typeof exerciseCatalog)[number]["id"];
 export const exerciseIds = exerciseCatalog.map(item => item.id) as [ExerciseId, ...ExerciseId[]];
 export const exerciseById = Object.fromEntries(exerciseCatalog.map(item => [item.id, item])) as Record<ExerciseId, (typeof exerciseCatalog)[number]>;
@@ -43,3 +75,65 @@ export const defaultWorkoutTemplates = {
   C: { name: "TREINO SUGERIDO 3 — Pernas e glúteos", objective: "Hipertrofia", focusGroup: "Pernas / Glúteos", durationMinutes: 65, exercises: ["C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08"] },
   D: { name: "TREINO SUGERIDO 4 — Peito, costas e braços", objective: "Hipertrofia", focusGroup: "Peito / Costas / Braços", durationMinutes: 60, exercises: ["D01", "D02", "D03", "D04", "D05", "D06", "D07", "D08"] },
 } as const;
+
+export const womanWorkoutTemplates = {
+  "A": {
+    "name": "Inferior A",
+    "objective": "Hipertrofia",
+    "focusGroup": "Base & força",
+    "durationMinutes": 60,
+    "exercises": [
+      "W01",
+      "W02",
+      "W03",
+      "W04",
+      "W05",
+      "W06",
+      "W07"
+    ]
+  },
+  "B": {
+    "name": "Superior A",
+    "objective": "Hipertrofia",
+    "focusGroup": "Puxar & empurrar",
+    "durationMinutes": 60,
+    "exercises": [
+      "W08",
+      "W09",
+      "W10",
+      "W11",
+      "W12",
+      "W13"
+    ]
+  },
+  "C": {
+    "name": "Inferior B",
+    "objective": "Hipertrofia",
+    "focusGroup": "Posterior & glúteos",
+    "durationMinutes": 60,
+    "exercises": [
+      "W14",
+      "W03",
+      "W15",
+      "W16",
+      "W05",
+      "W06"
+    ]
+  },
+  "D": {
+    "name": "Superior B",
+    "objective": "Hipertrofia",
+    "focusGroup": "Costas & ombros",
+    "durationMinutes": 60,
+    "exercises": [
+      "W17",
+      "W18",
+      "W19",
+      "W20",
+      "W11",
+      "W21",
+      "W22"
+    ]
+  }
+} as const;
+export const templatesFor = (experience: Experience = "man") => experience === "woman" ? womanWorkoutTemplates : defaultWorkoutTemplates;

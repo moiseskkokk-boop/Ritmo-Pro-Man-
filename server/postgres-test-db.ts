@@ -10,7 +10,7 @@ export async function isolatedPostgres() {
   await connection.connect();
   try {
     await connection.query("SET search_path TO pg_temp");
-    for (const file of ["0000_pg_initial.sql", "0001_sessions_ai_week.sql", "0002_session_water_cardio.sql"]) {
+    for (const file of ["0000_pg_initial.sql", "0001_sessions_ai_week.sql", "0002_session_water_cardio.sql", "0004_experience_parity.sql"]) {
       const source = await readFile(new URL(`../drizzle-pg/${file}`, import.meta.url), "utf8");
       await connection.query(source.replace(/CREATE TABLE/g, "CREATE TEMP TABLE"));
     }

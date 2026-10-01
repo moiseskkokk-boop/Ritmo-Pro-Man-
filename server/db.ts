@@ -1,3 +1,4 @@
+import type { Experience } from "@shared/workouts";
 import { and, desc, eq, gt, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
@@ -411,14 +412,14 @@ export async function clearCurrentAssessment(userId: number, weekStart: string) 
   return { success: true as const };
 }
 
-export async function getWorkoutPlans(userId: number) {
+export async function getWorkoutPlans(userId: number, experience: Experience = "man") {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(workoutPlans).where(eq(workoutPlans.userId, userId)).orderBy(desc(workoutPlans.updatedAt));
+  return db.select().from(workoutPlans).where(and(eq(workoutPlans.userId, userId), eq(workoutPlans.experience, experience))).orderBy(desc(workoutPlans.updatedAt));
 }
 
 export async function createWorkoutPlan(input: {
-  userId: number; source: "manual" | "ai" | "customized" | "day5"; baseWorkoutId?: string | null;
+  userId: number; experience?: Experience; source: "manual" | "ai" | "customized" | "day5"; baseWorkoutId?: string | null;
   name: string; objective: string; focusGroup: string; durationMinutes: number; notes?: string | null; exercisesJson: string;
 }) {
   const db = await getDb();
@@ -431,18 +432,18 @@ export async function createWorkoutPlan(input: {
 
 export async function updateWorkoutPlan(userId: number, id: number, input: {
   name: string; objective: string; focusGroup: string; durationMinutes: number; notes?: string | null; exercisesJson: string;
-}) {
+}, experience: Experience = "man") {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  await db.update(workoutPlans).set({ ...input, updatedAt: new Date() }).where(and(eq(workoutPlans.id, id), eq(workoutPlans.userId, userId)));
-  const rows = await db.select().from(workoutPlans).where(and(eq(workoutPlans.id, id), eq(workoutPlans.userId, userId))).limit(1);
+  await db.update(workoutPlans).set({ ...input, updatedAt: new Date() }).where(and(eq(workoutPlans.id, id), eq(workoutPlans.userId, userId), eq(workoutPlans.experience, experience)));
+  const rows = await db.select().from(workoutPlans).where(and(eq(workoutPlans.id, id), eq(workoutPlans.userId, userId), eq(workoutPlans.experience, experience))).limit(1);
   return rows[0];
 }
 
-export async function deleteWorkoutPlan(userId: number, id: number) {
+export async function deleteWorkoutPlan(userId: number, id: number, experience: Experience = "man") {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  const deleted = await db.delete(workoutPlans).where(and(eq(workoutPlans.id, id), eq(workoutPlans.userId, userId))).returning({ id: workoutPlans.id });
+  const deleted = await db.delete(workoutPlans).where(and(eq(workoutPlans.id, id), eq(workoutPlans.userId, userId), eq(workoutPlans.experience, experience))).returning({ id: workoutPlans.id });
   return deleted.length > 0;
 }
 
@@ -671,23 +672,23 @@ export async function ingestWearableActivity(input: {
   return rows[0];
 }
 
-export async function getRecentTrainingContext(userId: number, from: string, to: string) {
+export async function getRecentTrainingContext(userId: number, from: string, to: string, experience: Experience = "man") {
   const db = await getDb(); if (!db) return [];
-  const sessions = await db.select().from(trainingSessions).where(and(eq(trainingSessions.userId, userId), gte(trainingSessions.activityDate, from), lte(trainingSessions.activityDate, to))).orderBy(desc(trainingSessions.startedAt)).limit(8);
+  const sessions = await db.select().from(trainingSessions).where(and(eq(trainingSessions.userId, userId), eq(trainingSessions.experience, experience), gte(trainingSessions.activityDate, from), lte(trainingSessions.activityDate, to))).orderBy(desc(trainingSessions.startedAt)).limit(8);
   if (!sessions.length) return [];
   const sets = await db.select().from(trainingSets).where(and(inArray(trainingSets.sessionId, sessions.map(s => s.id)), isNull(trainingSets.voidedAt))).orderBy(trainingSets.id);
   return sessions.map(session => {
     const smartwatch = session.smartwatchJson ? JSON.parse(session.smartwatchJson) : null;
-    return { date: session.activityDate, status: session.status, workout: JSON.parse(session.snapshotJson), sets: sets.filter(s => s.sessionId === session.id).slice(0, 12).map(s => ({ exerciseId: s.exerciseId, reps: s.reps, seconds: s.seconds, loadKg: s.loadKg, note: s.note })), note: session.note, smartwatch: smartwatch ? (smartwatch.photoKey ? { cardio: { modality: smartwatch.modality, metrics: smartwatch.metrics } } : { workout: smartwatch.workout ? { modality: smartwatch.workout.modality, metrics: smartwatch.workout.metrics } : null, cardio: smartwatch.cardio ? { modality: smartwatch.cardio.modality, metrics: smartwatch.cardio.metrics } : null }) : null };
+    return { date: session.activityDate, status: session.status, completedExercises: JSON.parse(session.completedExercisesJson), workout: JSON.parse(session.snapshotJson), sets: sets.filter(s => s.sessionId === session.id).slice(0, 12).map(s => ({ exerciseId: s.exerciseId, reps: s.reps, seconds: s.seconds, loadKg: s.loadKg, note: s.note })), note: session.note, smartwatch: smartwatch ? (smartwatch.photoKey ? { cardio: { modality: smartwatch.modality, metrics: smartwatch.metrics } } : { workout: smartwatch.workout ? { modality: smartwatch.workout.modality, metrics: smartwatch.workout.metrics } : null, cardio: smartwatch.cardio ? { modality: smartwatch.cardio.modality, metrics: smartwatch.cardio.metrics } : null }) : null };
   });
 }
 
-async function getCompletedTrainingDates(userId: number, from: string, to: string) {
+async function getCompletedTrainingDates(userId: number, from: string, to: string, experience: Experience = "man") {
   const db = await getDb(); if (!db) return [];
-  return db.select({ activityDate: trainingSessions.activityDate }).from(trainingSessions).where(and(eq(trainingSessions.userId,userId),eq(trainingSessions.status,"completed"),gte(trainingSessions.activityDate,from),lte(trainingSessions.activityDate,to)));
+  return db.select({ activityDate: trainingSessions.activityDate }).from(trainingSessions).where(and(eq(trainingSessions.userId,userId),eq(trainingSessions.experience,experience),eq(trainingSessions.status,"completed"),gte(trainingSessions.activityDate,from),lte(trainingSessions.activityDate,to)));
 }
 
-export async function getWeeklyActivityAnalysis(userId: number, from: string, to: string, weekStart: string) {
+export async function getWeeklyActivityAnalysis(userId: number, from: string, to: string, weekStart: string, experience: Experience = "man") {
   const previousStartDate = new Date(`${weekStart}T00:00:00Z`); previousStartDate.setUTCDate(previousStartDate.getUTCDate() - 7);
   const previousStart = previousStartDate.toISOString().slice(0, 10);
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: ENV.appTimeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
@@ -705,8 +706,8 @@ export async function getWeeklyActivityAnalysis(userId: number, from: string, to
     getWearableActivities(userId, previousStart, previousEnd),
     getWearableDailySummaries(userId, previousStart, previousEnd),
     getDailyHistory(userId, previousStart, previousEnd),
-    getCompletedTrainingDates(userId, from, effectiveEnd),
-    getCompletedTrainingDates(userId, previousStart, previousEnd),
+    getCompletedTrainingDates(userId, from, effectiveEnd, experience),
+    getCompletedTrainingDates(userId, previousStart, previousEnd, experience),
     getDb().then(db => db ? db.select().from(fitnessPreferences).where(eq(fitnessPreferences.userId, userId)).limit(1) : []),
   ]);
   const collapseDailySummaries = (rows: Awaited<ReturnType<typeof getWearableDailySummaries>>) => {
@@ -745,8 +746,8 @@ export async function getWeeklyActivityAnalysis(userId: number, from: string, to
   const heartRates = providerActivities.map(row => row.averageHeartRate).filter((value): value is number => typeof value === "number");
   const maxHeartRates = providerActivities.map(row => row.maxHeartRate).filter((value): value is number => typeof value === "number");
   const distances = providerActivities.map(row => row.distanceKm == null ? null : Number(row.distanceKm)).filter((value): value is number => Number.isFinite(value));
-  const workoutDates = new Set([...logs.filter(log => log.workoutId && log.completedCount > 0).map(log => log.activityDate), ...sessions.map(row => row.activityDate)]);
-  const workoutsCompleted = sessions.length + new Set(logs.filter(log => log.workoutId && log.completedCount > 0 && !sessions.some(s => s.activityDate === log.activityDate)).map(log => log.activityDate)).size;
+  const workoutDates = new Set([...logs.filter(log => experience === "man" && log.workoutId && log.completedCount > 0).map(log => log.activityDate), ...sessions.map(row => row.activityDate)]);
+  const workoutsCompleted = sessions.length + new Set(logs.filter(log => experience === "man" && log.workoutId && log.completedCount > 0 && !sessions.some(s => s.activityDate === log.activityDate)).map(log => log.activityDate)).size;
   const workoutsTarget = preferencesSchema.parse(preferences[0] ? JSON.parse(preferences[0].dataJson) : {}).workoutsPerWeek;
   const activityDays = new Set(providerActivities.map(row => row.activityDate));
   const activityTypes = Array.from(new Set(providerActivities.map(row => row.activityType).filter((value): value is string => Boolean(value))));
@@ -763,7 +764,7 @@ export async function getWeeklyActivityAnalysis(userId: number, from: string, to
   const activeCalories = sumSummary("activityCaloriesKcal");
   const totalCalories = sumSummary("totalCaloriesKcal");
   const previousProviderActivities = previousActivities;
-  const previousWorkoutsCompleted = previousSessions.length + new Set(previousLogs.filter(log => log.workoutId && log.completedCount > 0 && !previousSessions.some(s => s.activityDate === log.activityDate)).map(log => log.activityDate)).size;
+  const previousWorkoutsCompleted = previousSessions.length + new Set(previousLogs.filter(log => experience === "man" && log.workoutId && log.completedCount > 0 && !previousSessions.some(s => s.activityDate === log.activityDate)).map(log => log.activityDate)).size;
   const previousSummaryTotal = (field: "workoutCaloriesKcal" | "activityCaloriesKcal" | "totalCaloriesKcal" | "durationMinutes" | "steps" | "sleepMinutes") => {
     const values = previousSummaries.map(row => row[field]).filter((value): value is number => typeof value === "number");
     return values.length ? values.reduce((a, b) => a + b, 0) : null;

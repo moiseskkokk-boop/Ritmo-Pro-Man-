@@ -451,3 +451,44 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible { 
 
 /* Ritmo Woman functional parity surfaces */
 .woman-shortcut{display:flex;align-items:center;gap:.65rem;border:1px solid rgba(0,0,0,.1);border-radius:1rem;background:#fff;padding:1rem;font-weight:800}.woman-shortcut svg{color:#e878aa}.woman-exercise-image{position:relative;display:block;width:100%;border:0;padding:0;background:#eee;cursor:zoom-in}.woman-exercise-image img{filter:grayscale(1) contrast(1.06)!important}.woman-exercise-image span{position:absolute;right:.65rem;bottom:.65rem;border-radius:999px;background:rgba(0,0,0,.72);padding:.3rem .6rem;color:#fff;font-size:.72rem;font-weight:800}.woman-session label>span{display:flex;align-items:center;gap:.45rem;margin-bottom:.45rem;font-weight:800}.woman-session input,.woman-session select{width:100%;border:1px solid rgba(0,0,0,.14);border-radius:.75rem;background:#fff;padding:.7rem .8rem}.woman-shell .exercise-lightbox img{filter:grayscale(1) contrast(1.06)!important}
+
+[data-experience="woman"] { --green:#f5a7c7; --green-dark:#e878aa; }
+[data-experience="woman"] .fitness-page { background:#f5f2ee; color:#171717; }
+[data-experience="woman"] .fitness-card, [data-experience="woman"] .fitness-header { background:#fffdf9; color:#171717; border-color:#ddd0d5; }
+[data-experience="woman"] .fitness-page label { color:#51414a; }
+[data-experience="woman"] .fitness-page input, [data-experience="woman"] .fitness-page select, [data-experience="woman"] .fitness-page textarea { background:#fff; color:#171717; border-color:#cbbbc2; color-scheme:light; }
+[data-experience="woman"] .fitness-page button { background:#f5a7c7; color:#171717; }
+[data-experience="woman"] .fitness-page progress { accent-color:#e878aa; }
+[data-experience="woman"] .fitness-brand, [data-experience="woman"] .fitness-kicker { color:#a83468; }
+[data-experience="woman"] .exercise-image-button img, [data-experience="woman"] .exercise-lightbox img { filter:grayscale(1) contrast(1.06)!important; }
+[data-experience="woman"] .workout-workspace button, [data-experience="woman"] .workout-workspace a { accent-color:#e878aa; }
+[data-experience="woman"] .fitness-card p { color:#63535c; }
+[data-experience="woman"] .fitness-kicker { color:#a83468!important; }
+[data-experience="woman"] .fitness-header a:hover { color:#a83468; }
+[data-experience="woman"] .fitness-page :focus-visible { outline-color:#e878aa; }
+[data-experience="woman"] .workout-workspace { background:#f5f2ee; color:#171717; }
+[data-experience="woman"] .workout-workspace .bg-white, [data-experience="woman"] .workout-workspace [class*="bg-slate-"], [data-experience="woman"] .workout-workspace [class*="bg-emerald-50"] { background:#fffdf9; }
+[data-experience="woman"] .workout-workspace input, [data-experience="woman"] .workout-workspace select, [data-experience="woman"] .workout-workspace textarea { background:#fff; color:#171717; color-scheme:light; }
+[data-experience="woman"] .workout-workspace [class*="text-slate-"] { color:#63535c; }
+[data-experience="woman"] .workout-workspace [class*="text-emerald-"] { color:#a83468; }
+[data-experience="woman"] .workout-workspace [class*="bg-emerald-950"] { background:#f5a7c7; color:#171717; }
+[data-experience="woman"] .workout-workspace [class*="border"] { border-color:#d8c5ce; }
+.fitness-brand { display:flex; align-items:center; gap:10px; }
+.fitness-brand img { border-radius:10px; }
+
+[data-experience="woman"] .fitness-kicker { color:#a83468!important; }
+[data-experience="woman"] .session-correct { background:#f5a7c7!important; border-color:#e878aa!important; }
+[data-experience="woman"] .workout-workspace { background:#f5f2ee; color:#171717; }
+[data-experience="woman"] .workout-workspace .bg-white,
+[data-experience="woman"] .workout-workspace .bg-slate-50\/70,
+[data-experience="woman"] .workout-workspace .bg-emerald-50\/70 { background:#fffdf9; }
+[data-experience="woman"] .workout-workspace input,
+[data-experience="woman"] .workout-workspace textarea,
+[data-experience="woman"] .workout-workspace select { background:#fff; color:#171717; color-scheme:light; }
+[data-experience="woman"] .workout-workspace [class*="text-slate-"] { color:#51414a; }
+[data-experience="woman"] .workout-workspace [class*="text-emerald-"] { color:#a83468; }
+[data-experience="woman"] .workout-workspace [class*="border"] { border-color:#ddd0d5; }
+[data-experience="woman"] .workout-workspace .bg-emerald-950 { background:#a83468; color:#fff; }
+[data-experience="woman"] .ritmo-page { --lime:#f5a7c7; }
+.legacy-woman-import button { border-radius:12px; padding:12px 18px; background:#f5a7c7; color:#171717; font-weight:700; }
+.legacy-woman-import button:disabled { opacity:.5; }

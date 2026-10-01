@@ -1,3 +1,4 @@
+import { useAuth } from "@/_core/hooks/useAuth";
 import { lazy, Suspense } from "react";
 const Fitness = lazy(() => import("./pages/Fitness"));
 import { Toaster } from "@/components/ui/sonner";
@@ -26,6 +27,7 @@ const TrainingPage = () => <Fitness view="training" />;
 const AnalysisPage = () => <Home view="analysis" />;
 
 function Router() {
+  const { user } = useAuth();
   // make sure to consider if you need authentication for certain routes
   return (
     <Suspense
@@ -35,7 +37,7 @@ function Router() {
         </main>
       }
     >
-      <Switch>
+      <div data-experience={user?.experience ?? "man"}><Switch>
         <Route path={"/"} component={Experience} />
         <Route path={"/treino"} component={TrainingPage} />
         <Route path={"/analise"} component={AnalysisPage} />
@@ -60,7 +62,7 @@ function Router() {
         <Route path={"/404"} component={NotFound} />
         {/* Final fallback route */}
         <Route component={NotFound} />
-      </Switch>
+      </Switch></div>
     </Suspense>
   );
 }

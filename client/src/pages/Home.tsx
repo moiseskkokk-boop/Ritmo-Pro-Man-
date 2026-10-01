@@ -327,7 +327,7 @@ const copy = {
     day5Status: "NÃO ATIVADO",
     day5Action: "Ver como funciona",
     photosKicker: "/ ACOMPANHAMENTO MENSAL",
-    photosTitle: "Sua foto frontal do mês",
+    photosTitle: "Avaliação mensal · 4 fotos",
     photosLead:
       "Telefone reto e centrado, postura natural, sem pose. Mulher: top e shorts curtos. Homem: shorts curtos, sem camisa. Estimativa visual, não diagnóstico.",
     selectPhoto: "Selecionar foto",
@@ -368,7 +368,7 @@ const copy = {
     day5Status: "NOT ACTIVE",
     day5Action: "See how it works",
     photosKicker: "/ MONTHLY TRACKING",
-    photosTitle: "Your monthly frontal photo",
+    photosTitle: "Monthly assessment · 4 photos",
     photosLead:
       "Phone straight and centered, natural stance, no pose. Women: top and short shorts. Men: short shorts, shirtless. Visual estimate, not diagnosis.",
     selectPhoto: "Select photo",
@@ -410,7 +410,7 @@ const copy = {
     day5Status: "NO ACTIVADO",
     day5Action: "Ver cómo funciona",
     photosKicker: "/ SEGUIMIENTO MENSUAL",
-    photosTitle: "Tu foto frontal del mes",
+    photosTitle: "Evaluación mensual · 4 fotos",
     photosLead:
       "Teléfono recto y centrado, postura natural, sin posar. Mujer: top y pantalón corto. Hombre: pantalón corto, sin camiseta. Estimación visual, no diagnóstico.",
     selectPhoto: "Seleccionar foto",
@@ -2131,9 +2131,9 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
     <div className={`ritmo-page ${isDark ? "theme-dark" : ""}`} id="top">
       <header className="site-header">
         <a className="brand" href="#top" aria-label="Ritmo Pro início">
-          <span className="brand-mark">R</span>
+          <span className="brand-mark">{user?.experience === "woman" ? <img src="/ritmo-woman-icon-192.png" alt="" width={40} height={40} /> : "R"}</span>
           <span>
-            <strong>Ritmo Pro</strong>
+            <strong>{user?.experience === "woman" ? "Ritmo Woman" : "Ritmo Pro"}</strong>
             <small>TREINO / 04X</small>
           </span>
         </a>
@@ -3034,9 +3034,9 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
       <footer>
         <div className="section-shell">
           <div className="brand footer-brand">
-            <span className="brand-mark">R</span>
+            <span className="brand-mark">{user?.experience === "woman" ? <img src="/ritmo-woman-icon-192.png" alt="" width={40} height={40} /> : "R"}</span>
             <span>
-              <strong>Ritmo Pro</strong>
+              <strong>{user?.experience === "woman" ? "Ritmo Woman" : "Ritmo Pro"}</strong>
               <small>TREINO / 04X SEMANA</small>
             </span>
           </div>

@@ -37,7 +37,8 @@ beforeAll(async () => {
   await pg.query(`INSERT INTO training_sessions (id,"userId","activityDate","snapshotJson") VALUES ($1,99,$2,$3)`, ["12345678-1234-4234-8234-123456789abc", today, JSON.stringify(originalSnapshot("A"))]);
   await pg.exec(readFileSync("drizzle-pg/0001_sessions_ai_week.sql", "utf8"));
   await pg.exec(readFileSync("drizzle-pg/0002_session_water_cardio.sql", "utf8"));
-  expect((await pg.query(`SELECT * FROM training_sessions WHERE "userId"=99`)).rows).toHaveLength(1);
+  await pg.exec(readFileSync("drizzle-pg/0004_experience_parity.sql", "utf8"));
+  expect((await pg.query(`SELECT * FROM training_sessions WHERE "userId"=99`)).rows).toMatchObject([{ experience: "man", completedExercisesJson: "[]" }]);
 }, 30000);
 afterAll(async () => { await pg.close(); process.env.DATABASE_URL = originalUrl; ENV.geminiApiKey = originalKey; });
 beforeEach(async () => {
@@ -47,7 +48,119 @@ beforeEach(async () => {
   state.put.mockImplementation(async (key: string) => ({ key: key.replace(/\.(jpg|png|webp)$/, "_ab12cd34.$1") }));
 });
 async function start(id: "A" | "B" = "A") { return a().fitness.start({ activityDate: today, originalId: id }); }
-async function confirm(sessionId: string, reps = 10) { return a().fitness.confirmSet({ sessionId, exerciseIndex: 0, setIndex: 0, reps, seconds: null, loadKg: 25, note: "série real", confirmed: true }); }
+async function confirm(sessionId: string, reps = 10) {
+  const session = await a().fitness.session({ sessionId });
+  if (session?.status !== "completed") for (let exerciseIndex = 0; session?.status === "in_progress" && exerciseIndex < session!.snapshot.exercises.length; exerciseIndex++) await a().fitness.markExercise({ sessionId, exerciseIndex, done: true });
+  return a().fitness.confirmSet({ sessionId, exerciseIndex: 0, setIndex: 0, reps, seconds: null, loadKg: 25, note: "série real", confirmed: true }); }
+
+const woman = () => appRouter.createCaller({ ...ctx(42), user: { ...ctx(42).user!, experience: "woman" } });
+const planInput = { name: "Plano Woman", objective: "Força", focusGroup: "Glúteos", durationMinutes: 45, notes: null, exercises: originalSnapshot("A", "woman").exercises, source: "manual" as const };
+
+describe("Woman parity and experience isolation", () => {
+  it("imports old local Woman records only on explicit request, once per account, without deleting existing sessions", async () => {
+    const existing = await woman().fitness.start({ activityDate: today, originalId: "B" });
+    const records = [{ activityDate: past, originalId: "A" as const, waterLiters: "2", cardioMinutes: 25, cardioType: "Bicicleta", savedAt: new Date(`${past}T18:00:00Z`).toISOString() }];
+    await expect(a().fitness.importLegacyWoman({ records })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await woman().fitness.importLegacyWoman({ records });
+    await woman().fitness.importLegacyWoman({ records });
+    const sessions = (await woman().fitness.overview()).sessions;
+    expect(sessions).toHaveLength(2);
+    expect(sessions.some(s => s.id === existing.id)).toBe(true);
+    expect(sessions.find(s => s.activityDate === past)).toMatchObject({ status: "completed", waterLiters: "2", cardioMinutes: 25, sets: [], note: expect.stringContaining("Bicicleta") });
+    expect((await a().fitness.overview()).sessions).toEqual([]);
+  });
+  it("preserves preexisting Man data when applying the additive migration", async () => {
+    expect((await pg.query(`SELECT column_default FROM information_schema.columns WHERE table_name='training_sessions' AND column_name='experience'`)).rows[0]).toMatchObject({ column_default: "'man'::character varying" });
+  });
+  it("supports independent suggested workouts, persisted circles and explicit final save without fabricated sets", async () => {
+    const manSession = await start("B");
+    const session = await woman().fitness.start({ activityDate: today, originalId: "A" });
+    expect(session.experience).toBe("woman");
+    expect(JSON.parse(session.snapshotJson)).toEqual(originalSnapshot("A", "woman"));
+    await expect(woman().fitness.finish({ sessionId: session.id, confirmed: true })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    for (let exerciseIndex = 0; exerciseIndex < 7; exerciseIndex++) await woman().fitness.markExercise({ sessionId: session.id, exerciseIndex, done: true });
+    expect((await woman().fitness.session({ sessionId: session.id }))?.status).toBe("in_progress");
+    await woman().fitness.markExercise({ sessionId: session.id, exerciseIndex: 0, done: false });
+    await expect(woman().fitness.finish({ sessionId: session.id, confirmed: true })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await woman().fitness.markExercise({ sessionId: session.id, exerciseIndex: 0, done: true });
+    await woman().fitness.finish({ sessionId: session.id, confirmed: true, waterLiters: "2.4", cardioMinutes: 20 });
+    const saved = await woman().fitness.session({ sessionId: session.id });
+    expect(saved).toMatchObject({ status: "completed", waterLiters: "2.4", cardioMinutes: 20, sets: [], metrics: { volumeKg: null, repetitions: null } });
+    expect(JSON.parse(saved!.completedExercisesJson)).toHaveLength(7);
+    expect((await woman().fitness.overview()).sessions.map(s => s.id)).toEqual([session.id]);
+    expect((await a().fitness.overview()).sessions.map(s => s.id)).toEqual([manSession.id]);
+    expect((await woman().fitness.overview()).nextSuggested).toBe("B");
+    expect((await a().fitness.overview()).nextSuggested).toBe("A");
+    expect(await a().fitness.session({ sessionId: session.id })).toBeNull();
+    await expect(a().fitness.markExercise({ sessionId: session.id, exerciseIndex: 0, done: true })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(a().fitness.finish({ sessionId: session.id, confirmed: true })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const weekStart = (await woman().progress.today()).weekStart;
+    expect(await woman().progress.weeklyActivityAnalysis({ from: weekStart, to: today, weekStart })).toMatchObject({ workoutsCompleted: 1 });
+    expect(await a().progress.weeklyActivityAnalysis({ from: weekStart, to: today, weekStart })).toMatchObject({ workoutsCompleted: 0 });
+  });
+  it("supports Woman library CRUD/reorder without exposing or mutating plans across experiences", async () => {
+    const plan = await woman().workouts.create(planInput);
+    expect((await woman().workouts.list()).map(p => p.id)).toEqual([plan.id]);
+    expect(await a().workouts.list()).toEqual([]);
+    await expect(a().fitness.start({ activityDate: today, planId: plan.id })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(a().workouts.remove({ id: plan.id })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(a().workouts.update({ ...planInput, exercises: originalSnapshot("A").exercises, id: plan.id })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const exercises = [...plan.exercises].reverse();
+    expect((await woman().workouts.update({ ...planInput, name: "Editado", id: plan.id, exercises })).exercises).toEqual(exercises);
+    const session = await woman().fitness.start({ activityDate: today, planId: plan.id });
+    expect(JSON.parse(session.snapshotJson).exercises).toEqual(exercises);
+    await woman().workouts.remove({ id: plan.id });
+    expect(await woman().workouts.list()).toEqual([]);
+    expect(await woman().fitness.session({ sessionId: session.id })).not.toBeNull();
+    await expect(woman().workouts.create({ ...planInput, exercises: originalSnapshot("A").exercises })).rejects.toThrow("Exercício não pertence");
+    await expect(a().workouts.create(planInput)).rejects.toThrow("Exercício não pertence");
+  });
+  it("requires circles even with recorded sets, validates indices and prevents edits after final save", async () => {
+    const session = await start();
+    await a().fitness.confirmSet({ sessionId: session.id, exerciseIndex: 0, setIndex: 0, reps: 10, seconds: null, loadKg: 25, note: "", confirmed: true });
+    await expect(a().fitness.finish({ sessionId: session.id, confirmed: true })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(a().fitness.markExercise({ sessionId: session.id, exerciseIndex: 19, done: true })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await confirm(session.id);
+    await a().fitness.finish({ sessionId: session.id, confirmed: true });
+    await expect(a().fitness.markExercise({ sessionId: session.id, exerciseIndex: 0, done: false })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+  it("uses Woman sessions and catalog in AI drafts, rejects cross-experience responses and summarizes actual completion", async () => {
+    await start();
+    const session = await woman().fitness.start({ activityDate: today, originalId: "B" });
+    for (let exerciseIndex = 0; exerciseIndex < 6; exerciseIndex++) await woman().fitness.markExercise({ sessionId: session.id, exerciseIndex, done: true });
+    await woman().fitness.finish({ sessionId: session.id, confirmed: true });
+    const input = { objective: "Força", focusGroup: "Glúteos", durationMinutes: 45, availabilityDays: 4, language: "pt" as const };
+    state.llm.mockResolvedValue(answer({ ...planInput, exercises: originalSnapshot("A").exercises }));
+    await expect(woman().workouts.generateWithAI(input)).rejects.toMatchObject({ code: "BAD_GATEWAY" });
+    state.llm.mockResolvedValue(answer(planInput));
+    expect((await woman().workouts.generateWithAI(input)).exercises).toEqual(planInput.exercises);
+    const payload = JSON.parse(state.llm.mock.calls[1][0].messages[1].content);
+    expect(payload.exerciseCatalog.every((e: { id: string }) => e.id.startsWith("W"))).toBe(true);
+    expect(payload.data.recentTrainingSessions).toHaveLength(1);
+    expect(payload.data.recentTrainingSessions[0].completedExercises).toHaveLength(6);
+    state.llm.mockResolvedValue(answer("Sessão Woman concluída."));
+    await woman().fitness.summarize({ sessionId: session.id });
+    await expect(a().fitness.summarize({ sessionId: session.id })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(a().progress.confirmSmartwatchPhoto({ sessionId: session.id, modality: "Treino", kind: "workout", dataUrl: photo, result: metrics })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await woman().progress.confirmSmartwatchPhoto({ sessionId: session.id, modality: "Treino", kind: "workout", dataUrl: photo, result: metrics });
+    expect((await woman().fitness.session({ sessionId: session.id }))?.smartwatch.workout.metrics.averageHeartRate).toBe(120);
+  });
+
+  it("uses the shared four-photo assessment and coach with Woman context", async () => {
+    state.llm.mockResolvedValue(answer(bodyResult));
+    await woman().progress.analyzeBody({ language: "pt", photos: { front: photo, left: photo, back: photo, right: photo } });
+    expect(Object.keys((await woman().progress.bodyAnalysisHistory())[0].photos)).toHaveLength(4);
+    const session = await woman().fitness.start({ activityDate: today, originalId: "A" });
+    await woman().fitness.markExercise({ sessionId: session.id, exerciseIndex: 0, done: true });
+    state.llm.mockResolvedValue(answer("Continue no seu ritmo."));
+    await woman().fitness.askCoach({ question: "Como evoluir meu treino?", language: "pt", contextAuthorized: true });
+    const payload = JSON.parse(state.llm.mock.calls[1][0].messages[1].content);
+    expect(payload.experience).toBe("woman");
+    expect(payload.context.training[0].completedExercises).toEqual([0]);
+    expect((await woman().fitness.coachHistory())[0].answer).toBe("Continue no seu ritmo.");
+  });
+
+});
 
 describe("fitness on isolated PostgreSQL (PGlite)", () => {
   it("starts and completes independent same-date sessions, queries by ID and keeps all in overview", async () => {

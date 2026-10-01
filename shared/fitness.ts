@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
-  defaultWorkoutTemplates,
+  templatesFor,
+  type Experience,
   exerciseIds,
   type ExerciseId,
 } from "./workouts";
@@ -45,12 +46,12 @@ export const snapshotSchema = z.object({
 });
 export type TrainingSnapshot = z.infer<typeof snapshotSchema>;
 export function originalSnapshot(
-  id: (typeof originalIds)[number]
+  id: (typeof originalIds)[number], experience: Experience = "man"
 ): TrainingSnapshot {
   return {
-    name: defaultWorkoutTemplates[id].name,
+    name: templatesFor(experience)[id].name,
     originalId: id,
-    exercises: defaultWorkoutTemplates[id].exercises.map(exerciseId => ({
+    exercises: templatesFor(experience)[id].exercises.map(exerciseId => ({
       exerciseId: exerciseId as ExerciseId,
       sets: originalPrescriptions[exerciseId as ExerciseId].sets,
       reps: originalPrescriptions[exerciseId as ExerciseId].reps,

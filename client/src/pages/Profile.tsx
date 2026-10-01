@@ -126,7 +126,7 @@ export default function Profile() {
 
   return <div className={`ritmo-page profile-page ${isDark ? "theme-dark" : ""}`} id="top">
     <header className="site-header">
-      <a className="brand" href="/treino" aria-label="Ritmo Pro início"><span className="brand-mark">R</span><span><strong>Ritmo Pro</strong><small>TREINO / 04X</small></span></a>
+      <a className="brand" href="/treino" aria-label="Ritmo Pro início"><span className="brand-mark">{user?.experience === "woman" ? <img src="/ritmo-woman-icon-192.png" alt="" width={40} height={40} /> : "R"}</span><span><strong>{user?.experience === "woman" ? "Ritmo Woman" : "Ritmo Pro"}</strong><small>TREINO / 04X</small></span></a>
       <nav className="main-nav"><a href={user?.experience === "woman" ? "/woman" : "/dashboard"}>{language === "en" ? "Home" : language === "es" ? "Inicio" : "Início"}</a><a className="active" href="/perfil">{t.profile}</a><a href={user?.experience === "woman" ? "/woman" : "/treino"}>{t.training}</a><a href="/treinos">Meus treinos</a><a href="/avaliacao">Avaliação</a><a href="/analise">{t.analysis}</a><a href="/assinatura">Assinatura</a>{user && <a href="/sair">{t.logout}</a>}</nav>
       <label className="language-picker"><span>{t.lang}</span><select value={language} onChange={event => setLang(event.target.value as Language)} aria-label={t.lang}><option value="pt">Português</option><option value="en">English</option><option value="es">Español</option></select></label>
       <div className="header-actions"><button className="theme-toggle" onClick={toggleTheme} aria-label={isDark ? t.light : t.dark}>{isDark ? <Sun size={15}/> : <Moon size={15}/>}<span>{isDark ? t.light : t.dark}</span></button>{loading ? <span className="auth-loading">...</span> : user ? <div className="account-chip">{user.profileImageUrl ? <img className="account-avatar" src={user.profileImageUrl} alt={displayName}/> : <span className="account-avatar account-avatar-fallback">{displayName.slice(0, 1).toUpperCase()}</span>}<div><strong>{displayName}</strong><small>{user.email || ""}</small></div><button className="account-logout" onClick={() => logout()}>{t.logout}</button></div> : <button className="dark-btn" onClick={startLogin}>{t.login}</button>}</div>
@@ -148,6 +148,6 @@ export default function Profile() {
         </section>
       </>}
     </main>
-    <footer><div className="section-shell"><div className="brand footer-brand"><span className="brand-mark">R</span><span><strong>Ritmo Pro</strong><small>TREINO / 04X SEMANA</small></span></div></div></footer>
+    <footer><div className="section-shell"><div className="brand footer-brand"><span className="brand-mark">{user?.experience === "woman" ? <img src="/ritmo-woman-icon-192.png" alt="" width={40} height={40} /> : "R"}</span><span><strong>{user?.experience === "woman" ? "Ritmo Woman" : "Ritmo Pro"}</strong><small>TREINO / 04X SEMANA</small></span></div></div></footer>
   </div>;
 }

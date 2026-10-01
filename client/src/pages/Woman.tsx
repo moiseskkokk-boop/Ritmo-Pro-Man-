@@ -1,35 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "wouter";
-import { Check, Dumbbell, UserRound, X, Droplets, Activity, Bot, TrendingUp, Library, Camera } from "lucide-react";
-const A="/exercises-woman/";
-const workouts=[
- {name:"Inferior A",focus:"Base & força",ex:[["Agachamento no Smith","agachamento-smith_bb5ce4a7.png"],["Leg Press 45°","leg-press-45_cc84911a.png"],["Hip Thrust","hip-thrust_d11d5899.png"],["Agachamento Búlgaro","agachamento-bulgaro_891cf377.png"],["Cadeira Extensora","cadeira-extensora_e8ae9141.png"],["Cadeira Abdutora","cadeira-abdutora_52fa0f21.png"],["Cadeira Adutora","cadeira-adutora_62799837.png"]]},
- {name:"Superior A",focus:"Puxar & empurrar",ex:[["Puxada Frontal na Polia","puxada-frontal-polia_aa0c6299.png"],["Remada Sentada na Polia","remada-sentada-polia_714e812f.png"],["Supino com Halteres","supino-halteres_734a389b.png"],["Elevação Lateral","elevacao-lateral-halteres_a93bd4f5.png"],["Rosca Direta","rosca-direta-barra_7880a996.png"],["Tríceps na Polia","triceps-polia-corda_6dccee9b.png"]]},
- {name:"Inferior B",focus:"Posterior & glúteos",ex:[["Stiff com Barra","stiff-barra_2caca81b.png"],["Hip Thrust","hip-thrust_d11d5899.png"],["Mesa Flexora","mesa-flexora_9290c436.png"],["Passada / Afundo","passada-afundo_0547620e.png"],["Cadeira Extensora","cadeira-extensora_e8ae9141.png"],["Cadeira Abdutora","cadeira-abdutora_52fa0f21.png"]]},
- {name:"Superior B",focus:"Costas & ombros",ex:[["Remada Cavalinho","remada-cavalinho_171e62d1.png"],["Puxada Fechada Supinada","puxada-fechada-supinada_d6ec89e1.png"],["Supino Inclinado","supino-inclinado-halteres_9231f4ce.png"],["Desenvolvimento de Ombros","desenvolvimento-ombros_37111aae.png"],["Elevação Lateral","elevacao-lateral-halteres_a93bd4f5.png"],["Rosca Martelo","rosca-martelo-halteres_9d724415.png"],["Tríceps Francês","triceps-frances-halter_f733c1b9.png"]]}
-];
-export default function Woman(){
- const [active,setActive]=useState(0);
- const [done,setDone]=useState<Record<string,boolean>>({});
- const [zoom,setZoom]=useState<{src:string;alt:string}|null>(null);
- const [water,setWater]=useState(""); const [cardio,setCardio]=useState(""); const [cardioType,setCardioType]=useState("Esteira"); const [saved,setSaved]=useState(false);
- const w=workouts[active]; const prefix=`woman-${new Date().toISOString().slice(0,10)}-${active}`;
- useEffect(()=>{ try{const raw=localStorage.getItem(prefix);if(raw){const x=JSON.parse(raw);setDone(x.done||{});setWater(x.water||"");setCardio(x.cardio||"");setCardioType(x.cardioType||"Esteira");setSaved(!!x.saved)}else{setDone({});setWater("");setCardio("");setSaved(false)}}catch{} },[prefix]);
- useEffect(()=>{if(!zoom)return;const f=(e:KeyboardEvent)=>{if(e.key==='Escape')setZoom(null)};window.addEventListener('keydown',f);return()=>window.removeEventListener('keydown',f)},[zoom]);
- const allDone=useMemo(()=>w.ex.every((_,i)=>done[`${active}-${i}`]),[w,done,active]);
- const save=()=>{if(!allDone)return;localStorage.setItem(prefix,JSON.stringify({done,water,cardio,cardioType,saved:true,savedAt:new Date().toISOString()}));setSaved(true)};
- return <main className="woman-shell min-h-screen bg-[#f5f2ee] text-[#171717]">
-  <header className="sticky top-0 z-20 flex items-center justify-between border-b border-black/10 bg-[#fffdf9]/95 px-5 py-3 backdrop-blur"><Link href="/woman" className="flex items-center gap-3"><img src="/ritmo-woman-icon-192.png" className="h-10 w-10 rounded-xl"/><span><b className="block tracking-[.14em]">RITMO WOMAN</b><small className="text-black/45">RITMO PRO</small></span></Link><nav className="flex gap-3 text-sm font-bold"><Link href="/coach">AI Coach</Link><Link href="/analise">Progresso</Link><Link href="/perfil"><UserRound size={18}/></Link></nav></header>
-  <section className="bg-[#171717] px-5 py-10 text-white"><div className="mx-auto max-w-6xl"><p className="text-xs font-bold uppercase tracking-[.2em] text-[#f5a7c7]">/ seu plano semanal</p><h1 className="mt-3 text-5xl font-black tracking-tight">Treine no seu ritmo.</h1><p className="mt-3 max-w-xl text-white/55">Mesma estrutura funcional do Ritmo Pro, com conteúdo e identidade Woman.</p></div></section>
-  <div className="mx-auto max-w-6xl px-5 py-8">
-   <div className="woman-shortcuts grid gap-3 sm:grid-cols-4"><Link href="/treinos" className="woman-shortcut"><Library/>Biblioteca</Link><Link href="/coach" className="woman-shortcut"><Bot/>AI Coach</Link><Link href="/analise" className="woman-shortcut"><TrendingUp/>Progresso</Link><Link href="/perfil" className="woman-shortcut"><UserRound/>Perfil</Link></div>
-   <div className="mt-7 grid gap-3 sm:grid-cols-4">{workouts.map((x,i)=><button key={x.name} onClick={()=>setActive(i)} className={`rounded-2xl border p-4 text-left ${i===active?'border-[#e878aa] bg-[#f5a7c7]':'border-black/10 bg-white'}`}><small className="font-bold uppercase text-black/45">Treino {i+1}</small><b className="mt-1 block">{x.name}</b><span className="text-xs text-black/50">{x.focus}</span></button>)}</div>
-   <section className="mt-8"><div className="flex items-center gap-3"><Dumbbell className="text-[#e878aa]"/><div><h2 className="text-3xl font-black">{w.name}</h2><p className="text-sm text-black/50">{w.focus} · 3 séries por exercício</p></div></div>
-    <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{w.ex.map(([name,img],i)=>{const k=`${active}-${i}`;return <article key={k} className="overflow-hidden rounded-3xl border border-black/10 bg-white"><button className="woman-exercise-image" onClick={()=>setZoom({src:A+img,alt:name})}><img src={A+img} alt={name} className="aspect-[4/3] w-full object-cover"/><span>Ampliar</span></button><div className="p-5"><h3 className="font-extrabold">{name}</h3><p className="mt-1 text-sm text-black/50">3 séries · repetições conforme prescrição</p><button onClick={()=>{setSaved(false);setDone(d=>({...d,[k]:!d[k]}))}} className={`mt-4 flex w-full items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-bold ${done[k]?'bg-[#f5a7c7]':'border border-black/15'}`}><span className="exercise-done-circle">{done[k]?'✓':''}</span>{done[k]?'Feito':'Marcar exercício'}</button></div></article>})}</div>
-   </section>
-   <section className="woman-session mt-8 rounded-3xl border border-black/10 bg-white p-6"><h2 className="text-xl font-black">Finalizar treino</h2><div className="mt-4 grid gap-4 md:grid-cols-2"><label><span><Droplets size={18}/> Quantos litros de água bebeu hoje?</span><input type="number" min="0" max="20" step="0.1" value={water} onChange={e=>setWater(e.target.value)} /></label><label><span><Activity size={18}/> Cardio · meta 20 min</span><div className="flex gap-2"><select value={cardioType} onChange={e=>setCardioType(e.target.value)}><option>Esteira</option><option>Bicicleta</option><option>Corrida livre</option></select><input type="number" min="0" max="1440" value={cardio} onChange={e=>setCardio(e.target.value)} placeholder="min"/></div></label></div><p className="mt-4 text-sm text-black/55"><Camera className="inline" size={16}/> Foto/screenshot do smartwatch continua disponível no fluxo de treino do Ritmo Pro.</p><button disabled={!allDone} onClick={save} className="mt-5 rounded-full bg-[#171717] px-6 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-35">{saved?'Treino salvo ✓':'Salvar treino'}</button>{!allDone&&<p className="mt-2 text-sm text-black/50">Marque todos os exercícios para liberar o salvamento.</p>}</section>
-   <div className="mt-8 flex flex-wrap gap-3"><Link href="/avaliacao" className="rounded-full border border-black/15 px-5 py-3 text-sm font-bold">Avaliação mensal</Link><Link href="/historico" className="rounded-full border border-black/15 px-5 py-3 text-sm font-bold">Histórico</Link><Link href="/escolher-versao" className="rounded-full border border-black/15 px-5 py-3 text-sm font-bold">Trocar versão</Link><Link href="/perfil" className="rounded-full bg-[#171717] px-5 py-3 text-sm font-bold text-white">Perfil</Link></div>
-  </div>
-  {zoom&&<div className="exercise-lightbox" role="dialog" aria-modal="true" onClick={()=>setZoom(null)}><button className="exercise-lightbox-close" onClick={()=>setZoom(null)}><X/></button><img src={zoom.src} alt={zoom.alt} onClick={e=>e.stopPropagation()}/></div>}
- </main>
+import LegacyWomanImport from "@/components/LegacyWomanImport";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { Redirect } from "wouter";
+import Fitness from "./Fitness";
+
+export default function Woman() {
+  const { user, loading } = useAuth();
+  if (loading) return <main role="status">Ritmo Woman…</main>;
+  if (!user) return <Redirect to="/login?next=/escolher-versao" />;
+  if (user.experience !== "woman") return <Redirect to="/escolher-versao" />;
+  return <><LegacyWomanImport accountName={user.name ?? user.email ?? "esta conta"} /><Fitness view="training" /></>;
 }

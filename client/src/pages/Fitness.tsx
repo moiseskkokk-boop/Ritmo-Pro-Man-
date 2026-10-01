@@ -3,10 +3,10 @@ import { localizeExercise } from "@shared/exercise-translations";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../server/routers";
 import { useEffect, useState } from "react";
-import { Link } from "wouter";
+import { Link, Redirect } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
-import { exerciseById, defaultWorkoutTemplates } from "@shared/workouts";
+import { exerciseById, templatesFor } from "@shared/workouts";
 import { originalPrescriptions } from "@shared/original-prescriptions";
 import {
   originalIds,
@@ -18,116 +18,10 @@ import {
 import { fitnessCopy, type Language } from "@shared/fitness-copy";
 
 type Overview = inferRouterOutputs<AppRouter>["fitness"]["overview"];
-type SetRow = Overview["sessions"][number]["sets"][number];
 type Copy = typeof fitnessCopy.pt;
-const numberOrNull = (value: string) =>
-  value.trim() === "" ? null : Number(value);
+const numberOrNull = (value: string) => value.trim() === "" ? null : Number(value);
 const panel = "fitness-card";
 
-function SetInput({
-  sessionId,
-  exerciseIndex,
-  setIndex,
-  exerciseId,
-  saved,
-  disabled,
-  c,
-  onSaved,
-}: {
-  sessionId: string;
-  exerciseIndex: number;
-  setIndex: number;
-  exerciseId: keyof typeof exerciseById;
-  saved?: SetRow;
-  disabled: boolean;
-  c: Copy;
-  onSaved: () => void;
-}) {
-  const [reps, setReps] = useState(
-    saved?.reps?.toString() ?? saved?.seconds?.toString() ?? ""
-  );
-  const [load, setLoad] = useState(saved?.loadKg?.toString() ?? "");
-  const [note, setNote] = useState(saved?.note ?? "");
-  const timed = originalPrescriptions[exerciseId].unit === "seconds";
-  const mutation = trpc.fitness.confirmSet.useMutation({ onSuccess: onSaved });
-  const retract = trpc.fitness.retractSet.useMutation({ onSuccess: onSaved });
-  return (
-    <div className="fitness-set">
-      <span>
-        {c.set} {setIndex + 1} {saved ? "✓" : ""}
-      </span>
-      <label>
-        {timed ? c.seconds : c.actualReps}
-        <input
-          aria-label={`${timed ? c.seconds : c.actualReps} ${setIndex + 1}`}
-          type="number"
-          min="1"
-          max={timed ? 3600 : 500}
-          value={reps}
-          disabled={disabled}
-          onChange={e => setReps(e.target.value)}
-        />
-      </label>
-      <label>
-        {c.load}
-        <input
-          type="number"
-          min="0"
-          max="500"
-          step="0.5"
-          value={load}
-          placeholder={c.unknown}
-          disabled={disabled}
-          onChange={e => setLoad(e.target.value)}
-        />
-      </label>
-      <label>
-        {c.note}
-        <input
-          value={note}
-          maxLength={500}
-          disabled={disabled}
-          onChange={e => setNote(e.target.value)}
-        />
-      </label>
-      <button
-        disabled={disabled || mutation.isPending || !reps}
-        onClick={() =>
-          mutation.mutate({
-            sessionId,
-            exerciseIndex,
-            setIndex,
-            reps: timed ? null : numberOrNull(reps),
-            seconds: timed ? numberOrNull(reps) : null,
-            loadKg: numberOrNull(load),
-            note,
-            confirmed: true,
-          })
-        }
-      >
-        {saved ? c.correct : c.confirmSet}
-      </button>
-      {saved && !disabled && (
-        <button
-          disabled={retract.isPending}
-          onClick={() =>
-            retract.mutate({
-              sessionId,
-              exerciseIndex,
-              setIndex,
-              confirmed: true,
-            })
-          }
-        >
-          {c.retract}
-        </button>
-      )}
-      {(mutation.error || retract.error) && (
-        <p role="alert">{mutation.error?.message || retract.error?.message}</p>
-      )}
-    </div>
-  );
-}
 function Training({
   data,
   c,
@@ -136,9 +30,11 @@ function Training({
 }: {
   data: Overview;
   c: Copy;
-  refresh: () => void;
+  refresh: () => void | Promise<unknown>;
   language: Language;
 }) {
+  const experience = data.experience;
+  const defaultWorkoutTemplates = templatesFor(experience);
   const [selection, setSelection] = useState(
     new URLSearchParams(window.location.search).get("plan")
       ? `plan:${new URLSearchParams(window.location.search).get("plan")}`
@@ -147,7 +43,7 @@ function Training({
   const [note, setNote] = useState("");
   const [waterLiters, setWaterLiters] = useState("");
   const [cardioMinutes, setCardioMinutes] = useState("");
-  const [exerciseDone, setExerciseDone] = useState<Record<number, boolean>>({});
+
   const [zoomImage, setZoomImage] = useState<{ src: string; alt: string } | null>(null);
   const [date, setDate] = useState(() => data.sessions.find(s => s.id === new URLSearchParams(window.location.search).get("session"))?.activityDate ?? data.today);
   const [activeId, setActiveId] = useState<string | null>(() => new URLSearchParams(window.location.search).get("session") ?? null);
@@ -156,8 +52,10 @@ function Training({
   const selectedSession = trpc.fitness.session.useQuery({ sessionId: activeId ?? "" }, { enabled: !!activeId && activeId !== "new" });
   const session = activeId ? data.sessions.find(s => s.id === activeId) ?? selectedSession.data : daySessions.find(s => s.status === "in_progress");
   useEffect(() => { if (session && activeId && activeId !== "new") setDate(session.activityDate); }, [session?.id, session?.activityDate, activeId]);
-  useEffect(() => { setNote(session?.note ?? ""); setWaterLiters(session?.waterLiters ?? ""); setCardioMinutes(session?.cardioMinutes == null ? "" : String(session.cardioMinutes)); setExerciseDone({}); }, [session?.id, session?.note, session?.waterLiters, session?.cardioMinutes]);
+  useEffect(() => { setNote(session?.note ?? ""); setWaterLiters(session?.waterLiters ?? ""); setCardioMinutes(session?.cardioMinutes == null ? "" : String(session.cardioMinutes)); }, [session?.id, session?.note, session?.waterLiters, session?.cardioMinutes]);
   useEffect(() => { if (!zoomImage) return; const close = (event: KeyboardEvent) => { if (event.key === "Escape") setZoomImage(null); }; window.addEventListener("keydown", close); return () => window.removeEventListener("keydown", close); }, [zoomImage]);
+  const exerciseDone = new Set<number>(JSON.parse(session?.completedExercisesJson ?? "[]"));
+  const mark = trpc.fitness.markExercise.useMutation({ onSuccess: refresh });
   const summarize = trpc.fitness.summarize.useMutation({ onSuccess: refresh });
   const start = trpc.fitness.start.useMutation({ onSuccess: row => { setActiveId(row.id); setEditing(row.status === "completed"); refresh(); } });
   const finish = trpc.fitness.finish.useMutation({
@@ -173,11 +71,12 @@ function Training({
     : originalSnapshot(
         originalIds.includes(selection as (typeof originalIds)[number])
           ? (selection as (typeof originalIds)[number])
-          : data.nextSuggested
+          : data.nextSuggested, experience
       );
   const plan = session?.snapshot ?? preview;
-  const total = plan.exercises.reduce((sum, e) => sum + e.sets, 0);
-  const allExercisesDone = Boolean(session) && plan.exercises.length > 0 && plan.exercises.every((_, index) => exerciseDone[index]);
+  const total = plan.exercises.length;
+  const completedCount = exerciseDone.size;
+  const allExercisesDone = Boolean(session) && plan.exercises.length > 0 && plan.exercises.every((_, index) => exerciseDone.has(index));
   const readOnly = date !== data.today && session?.status !== "completed";
   if (activeId && activeId !== "new" && !session) return <section className={panel}>
     <p role={selectedSession.isLoading ? "status" : "alert"}>{selectedSession.isLoading ? c.loading : selectedSession.error?.message ?? "Sessão não encontrada."}</p>
@@ -198,7 +97,7 @@ function Training({
         <p>{date === data.today ? c.todayOnly : "Sessões concluídas podem ser corrigidas; novos registros somente hoje."}</p>
         <div className="session-cards">{daySessions.map(row => <article key={row.id} className="fitness-log">
           <p>{row.activityDate} · {new Date(row.startedAt).toLocaleTimeString()} · {row.status === "completed" ? c.finished : c.inProgress}</p>
-          <h2>{row.snapshot.name}</h2><p>{row.sets.length} {c.confirmedSets} · {row.metrics.repetitions ?? c.unknown} {c.reps}</p>
+          <h2>{row.snapshot.name}</h2><p>{JSON.parse(row.completedExercisesJson).length}/{row.snapshot.exercises.length} {c.exercises}</p>
           <button className="session-correct" onClick={() => { setActiveId(row.id); setEditing(row.status === "completed"); }}>{row.status === "completed" ? "Abrir / Corrigir" : "Continuar"}</button>
         </article>)}</div>
         {daySessions.length > 0 && date === data.today && <button onClick={() => { setActiveId("new"); setEditing(false); }}>Iniciar outro treino</button>}
@@ -212,7 +111,7 @@ function Training({
               >
                 {originalIds.map((id, i) => (
                   <option key={id} value={id}>
-                    {c.suggested} {i + 1} ·{" "}
+                    {experience === "woman" ? defaultWorkoutTemplates[id].name : `${c.suggested} ${i + 1}`} ·{" "}
                     {defaultWorkoutTemplates[id].focusGroup}
                   </option>
                 ))}
@@ -244,15 +143,15 @@ function Training({
           <>
             <h2>
               {session.snapshot.originalId
-                ? `${c.suggested} ${originalIds.indexOf(session.snapshot.originalId) + 1}`
+                ? (experience === "woman" ? plan.name : `${c.suggested} ${originalIds.indexOf(session.snapshot.originalId) + 1}`)
                 : plan.name}
             </h2>
             <p>
               {session.status === "completed" ? c.finished : c.inProgress} ·{" "}
-              {session.sets.length}/{total} {c.confirmedSets}
+              {completedCount}/{total} {c.exercises}
             </p>
-            <progress max={total} value={session.sets.length} />
-            <p>{c.partialHelp}</p>
+            <progress max={total} value={completedCount} />
+            <p>{language === "en" ? "Mark every exercise, then save the workout." : language === "es" ? "Marca todos los ejercicios y luego guarda el entrenamiento." : "Marque todos os exercícios e depois salve o treino."}</p>
           </>
         )}
         {date !== data.today && !daySessions.length && <p>{c.noTraining}</p>}
@@ -269,7 +168,7 @@ function Training({
             <div className="fitness-exercise">
               <button type="button" className="exercise-image-button" aria-label={`Ampliar ${localizeExercise(exerciseById[e.exerciseId].name, language)}`} onClick={() => setZoomImage({ src: originalPrescriptions[e.exerciseId].image, alt: localizeExercise(exerciseById[e.exerciseId].name, language) })}>
                 <img
-                  className={["B08","C06","C08","D01","D07","D08"].includes(e.exerciseId) ? "exercise-color-match" : undefined}
+                  className={(experience === "woman" || ["B08","C06","C08","D01","D07","D08"].includes(e.exerciseId)) ? "exercise-color-match" : undefined}
                   src={originalPrescriptions[e.exerciseId].image}
                   alt={localizeExercise(exerciseById[e.exerciseId].name, language)}
                   loading="lazy"
@@ -291,24 +190,25 @@ function Training({
               </div>
             </div>
             {session ? (
-              <button type="button" className={`exercise-done-toggle ${exerciseDone[index] ? "is-done" : ""}`} aria-pressed={!!exerciseDone[index]} onClick={() => setExerciseDone(current => ({ ...current, [index]: !current[index] }))}>
-                <span className="exercise-done-circle">{exerciseDone[index] ? "✓" : ""}</span>
-                {exerciseDone[index] ? "Feito" : "Marcar exercício"}
+              <button type="button" className={`exercise-done-toggle ${exerciseDone.has(index) ? "is-done" : ""}`} aria-pressed={!!exerciseDone.has(index)} disabled={mark.isPending || finish.isPending || readOnly || session.status === "completed"} onClick={() => mark.mutate({ sessionId: session.id, exerciseIndex: index, done: !exerciseDone.has(index) })}>
+                <span className="exercise-done-circle">{exerciseDone.has(index) ? "✓" : ""}</span>
+                {exerciseDone.has(index) ? "Feito" : "Marcar exercício"}
               </button>
             ) : (
               <p>{c.startToRecord}</p>
             )}
           </article>
         ))}
+      {mark.error && <p role="alert">{mark.error.message}</p>}
       {zoomImage && <div className="exercise-lightbox" role="dialog" aria-modal="true" aria-label={zoomImage.alt} onClick={() => setZoomImage(null)}><button type="button" className="exercise-lightbox-close" aria-label="Fechar imagem" onClick={() => setZoomImage(null)}>×</button><img src={zoomImage.src} alt={zoomImage.alt} onClick={e => e.stopPropagation()} /></div>}
       {session?.status === "completed" && (
         <section className={panel}>
           <p className="fitness-kicker">{new Date(`${session.activityDate}T12:00:00`).toLocaleDateString(language === "en" ? "en-GB" : language === "es" ? "es-ES" : "pt-PT", { day: "2-digit", month: "long", year: "numeric" })}</p>
-          <h2>{session.snapshot.originalId ? `${c.suggested} ${originalIds.indexOf(session.snapshot.originalId) + 1}` : session.snapshot.name}</h2>
+          <h2>{session.snapshot.originalId && experience === "man" ? `${c.suggested} ${originalIds.indexOf(session.snapshot.originalId) + 1}` : session.snapshot.name}</h2>
           <p>{c.finished}</p>
           {session.note && <p><strong>{c.sessionNote}:</strong> {session.note}</p>}
           <button className="session-correct" onClick={() => setEditing(!editing)}>{editing ? "Fechar detalhes" : "Abrir / Corrigir"}</button>
-          {session.smartwatch && <><h3>{session.smartwatch.modality}</h3><PrivatePhoto photoKey={session.smartwatch.photoKey} c={c} /><div>{Object.entries(session.smartwatch.metrics).filter(([, value]) => value !== null).map(([key, value]) => <p key={key}>{smartwatchMetricLabels[key] ?? (key === "confidence" ? "Confiança" : key)}: {Array.isArray(value) ? value.join(" · ") : String(value)}</p>)}</div></>}
+          {session.smartwatch && (session.smartwatch.photoKey ? [session.smartwatch] : [session.smartwatch.workout, session.smartwatch.cardio]).filter(Boolean).map((record, index) => <div key={index}><h3>{record.modality}</h3><PrivatePhoto photoKey={record.photoKey} c={c} /><div>{Object.entries(record.metrics).filter(([, value]) => value !== null).map(([key, value]) => <p key={key}>{smartwatchMetricLabels[key] ?? (key === "confidence" ? "Confiança" : key)}: {Array.isArray(value) ? value.join(" · ") : String(value)}</p>)}</div></div>)}
           {session.summary && <p className="fitness-answer">{session.summary}</p>}
           <button disabled={summarize.isPending} onClick={() => summarize.mutate({ sessionId: session.id })}>{summarize.isPending ? "Gerando resumo…" : session.summary ? "Atualizar resumo com IA" : "Gerar resumo com IA"}</button>
           {summarize.error && <p role="alert">{summarize.error.message}</p>}
@@ -342,7 +242,7 @@ function Training({
           <div className="fitness-grid session-daily-metrics"><label>Quantos litros de água bebeu hoje?<input type="number" min="0" max="20" step="0.1" value={waterLiters} onChange={e => setWaterLiters(e.target.value)} /></label><label>Cardio <small>Meta: 20 minutos de esteira</small><input aria-label="Quantos minutos de cardio fez?" type="number" min="0" max="1440" value={cardioMinutes} onChange={e => setCardioMinutes(e.target.value)} placeholder="Quantos minutos de cardio fez?" /></label></div>
           <SessionSmartwatch key={session.id} sessionId={session.id} language={language} refresh={refresh} existing={session.smartwatch} />
           <button
-            disabled={finish.isPending || (session.status !== "completed" && !allExercisesDone)}
+            disabled={finish.isPending || mark.isPending || readOnly || (session.status !== "completed" && !allExercisesDone)}
             onClick={() =>
               finish.mutate({ sessionId: session.id, note, waterLiters: waterLiters || null, cardioMinutes: cardioMinutes === "" ? null : Number(cardioMinutes), confirmed: true })
             }
@@ -423,7 +323,7 @@ function Wellness({
 }: {
   data: Overview;
   c: Copy;
-  refresh: () => void;
+  refresh: () => void | Promise<unknown>;
   language: Language;
 }) {
   const [kind, setKind] = useState<WellnessData["kind"]>("water");
@@ -767,7 +667,7 @@ function Body({
 }: {
   data: Overview;
   c: Copy;
-  refresh: () => void;
+  refresh: () => void | Promise<unknown>;
 }) {
   const [date, setDate] = useState(data.today);
   const [values, setValues] = useState({
@@ -980,7 +880,8 @@ function History({
   const allSets = data.sessions.flatMap(s =>
     s.sets.map(t => ({ ...t, date: s.activityDate, status: s.status }))
   );
-  const ids = Array.from(new Set(allSets.map(s => s.exerciseId)));
+  const completedRows = data.sessions.flatMap(s => (JSON.parse(s.completedExercisesJson) as number[]).map(index => ({ exerciseId: s.snapshot.exercises[index].exerciseId, date: s.activityDate })));
+  const ids = Array.from(new Set([...allSets.map(s => s.exerciseId), ...completedRows.map(s => s.exerciseId)]));
   const dates = Array.from(new Set(data.trainingDates));
   return (
     <>
@@ -998,26 +899,32 @@ function History({
             <h2>
               {s.activityDate} ·{" "}
               {s.snapshot.originalId
-                ? `${c.suggested} ${originalIds.indexOf(s.snapshot.originalId) + 1}`
+                ? (data.experience === "woman" ? s.snapshot.name : `${c.suggested} ${originalIds.indexOf(s.snapshot.originalId) + 1}`)
                 : s.snapshot.name}
             </h2>
             <p>
               {s.status === "completed" ? c.finished : c.inProgress} ·{" "}
-              {s.metrics.confirmedSets} {c.confirmedSets} · {c.volume}:{" "}
+              {JSON.parse(s.completedExercisesJson).length}/{s.snapshot.exercises.length} {c.exercises} · {c.volume}:{" "}
               {s.metrics.volumeKg ?? c.unknown} kg · {c.reps}:{" "}
               {s.metrics.repetitions ?? c.unknown}
             </p>
             <p>{s.note}</p>
+            {s.waterLiters != null && <p>{c.water}: {s.waterLiters} L</p>}
+            {s.cardioMinutes != null && <p>{c.cardio}: {s.cardioMinutes} min</p>}
             <Link className="session-correct" href={`/treino?session=${s.id}`}>Abrir / Corrigir</Link>
           </article>
         ))}
       </section>
       <section className={panel}>
         <h2>{c.exerciseProgress}</h2>
+        {Array.from(new Set(data.sessions.flatMap(session => session.snapshot.exercises.filter((_, index) => JSON.parse(session.completedExercisesJson).includes(index)).map(exercise => exercise.exerciseId)))).map(id => {
+          const completed = data.sessions.filter(session => session.snapshot.exercises.some((exercise, index) => exercise.exerciseId === id && (JSON.parse(session.completedExercisesJson).includes(index))));
+          return <article className="fitness-log" key={`completion:${id}`}><h3>{localizeExercise(exerciseById[id].name, language)}</h3><p>{completed.length} {c.finishedSessions} · {completed.map(session => session.activityDate).join(" · ")}</p></article>;
+        })}
         {ids.map(id => {
           const rows = allSets.filter(s => s.exerciseId === id);
           const metrics = trainingMetrics(rows);
-          const days = Array.from(new Set(rows.map(s => s.date)))
+          const days = Array.from(new Set([...rows.map(s => s.date), ...completedRows.filter(s => s.exerciseId === id).map(s => s.date)]))
             .sort()
             .reverse();
           return (
@@ -1114,15 +1021,13 @@ export default function Fitness({
   useEffect(() => {
     if (query.data) setLanguage(query.data.preferences.language);
   }, [query.data?.preferences.language]);
-  const refresh = () => {
-    void utils.fitness.overview.invalidate();
-    void utils.fitness.session.invalidate();
-  };
+  const refresh = () => Promise.all([utils.fitness.overview.invalidate(), utils.fitness.session.invalidate()]);
+  if (!loading && user && !user.experience) return <Redirect to="/escolher-versao" />;
   return (
     <main className="fitness-page">
       <header className="fitness-header">
         <Link className="fitness-brand" href="/dashboard">
-          Ritmo Pro
+          <img src={user?.experience === "woman" ? "/ritmo-woman-icon-192.png" : "/ritmo-man-logo.png"} alt="" width={40} height={40} /> {user?.experience === "woman" ? "Ritmo Woman" : "Ritmo Pro"}
         </Link>
         <select
           aria-label="Idioma / Language / Idioma"
@@ -1148,6 +1053,9 @@ export default function Fitness({
             ["/historico", c.history],
             ["/coach", "AI Coach"],
             ["/perfil", c.profile],
+            ["/analise", "Avaliação mensal"],
+            ["/assinatura", "Assinatura"],
+            ["/escolher-versao", "Trocar versão"],
           ].map(([href, label]) => (
             <Link key={href} href={href}>
               {label}
@@ -1169,10 +1077,11 @@ export default function Fitness({
             <p role="alert">{query.error.message}</p>
             <button onClick={() => query.refetch()}>{c.retry}</button>
           </section>
-        ) : !query.data ? (
+        ) : !query.data || query.data.experience !== (user.experience ?? "man") ? (
           <p>{c.loading}</p>
         ) : view === "training" ? (
           <Training
+            key={`${user.id}:${user.experience ?? "man"}`}
             data={query.data}
             c={c}
             refresh={refresh}
@@ -1180,6 +1089,7 @@ export default function Fitness({
           />
         ) : view === "wellness" ? (
           <Wellness
+            key={`${user.id}:${user.experience ?? "man"}`}
             data={query.data}
             c={c}
             refresh={refresh}

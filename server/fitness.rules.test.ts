@@ -260,3 +260,19 @@ describe("fitness domain rules", () => {
       await expect(query()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 });
+
+describe("Woman original content", () => {
+  it("keeps four distinct original plans with first-class validated exercises and existing image files", async () => {
+    const { womanWorkoutTemplates, womanExerciseCatalog } = await import("../shared/workouts");
+    const { snapshotSchema } = await import("../shared/fitness");
+    const { existsSync } = await import("node:fs");
+    expect(Object.values(womanWorkoutTemplates).map(p => p.name)).toEqual(["Inferior A", "Superior A", "Inferior B", "Superior B"]);
+    expect(Object.values(womanWorkoutTemplates).map(p => p.exercises.length)).toEqual([7, 6, 6, 7]);
+    for (const id of originalIds) {
+      const snapshot = snapshotSchema.parse(originalSnapshot(id, "woman"));
+      expect(snapshot.exercises.map(e => e.exerciseId)).toEqual(womanWorkoutTemplates[id].exercises);
+      expect(snapshot.exercises.every(e => e.sets === 3)).toBe(true);
+    }
+    for (const exercise of womanExerciseCatalog) expect(existsSync(`client/public${exercise.image}`)).toBe(true);
+  });
+});

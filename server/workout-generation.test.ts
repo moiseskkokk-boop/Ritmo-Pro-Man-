@@ -49,3 +49,21 @@ describe("weekly AI draft consumption", () => {
     expect(state.reserve).not.toHaveBeenCalled();
   });
 });
+
+describe("Woman AI catalog", () => {
+  const womanCaller = appRouter.createCaller({ user: { id: 42, experience: "woman" }, req: { headers: {} }, res: {} } as TrpcContext);
+  it("sends only the Woman catalog and accepts first-class Woman exercise IDs", async () => {
+    const womanDraft = { ...draft, exercises: [{ ...draft.exercises[0], exerciseId: "W03" }] };
+    state.llm.mockResolvedValue({ choices: [{ message: { content: JSON.stringify(womanDraft) } }] });
+    expect(await womanCaller.workouts.generateWithAI(input)).toEqual(womanDraft);
+    const payload = JSON.parse(state.llm.mock.calls[0][0].messages[1].content);
+    expect(payload.experience).toBe("woman");
+    expect(payload.exerciseCatalog).toHaveLength(22);
+    expect(payload.exerciseCatalog.every((e: { id: string }) => e.id.startsWith("W"))).toBe(true);
+  });
+  it("rejects Man exercises returned by the provider for Woman and releases the reservation", async () => {
+    state.llm.mockResolvedValue({ choices: [{ message: { content: JSON.stringify(draft) } }] });
+    await expect(womanCaller.workouts.generateWithAI(input)).rejects.toMatchObject({ code: "BAD_GATEWAY" });
+    expect(state.release).toHaveBeenCalledOnce();
+  });
+});

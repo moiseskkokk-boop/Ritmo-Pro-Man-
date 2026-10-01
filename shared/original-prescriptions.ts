@@ -1,5 +1,6 @@
+import { womanExerciseCatalog } from "./workouts";
 // Extracted from the existing four original workouts; no exercises substituted.
-export const originalPrescriptions = {
+const manPrescriptions = {
   "A01": {
     "sets": 3,
     "reps": "8–12",
@@ -193,3 +194,5 @@ export const originalPrescriptions = {
     "image": "/exercises/D08-abdominal-parcial-solo_0600f291.png"
   }
 } as const;
+
+export const originalPrescriptions = { ...manPrescriptions, ...Object.fromEntries(womanExerciseCatalog.map(e => [e.id, { sets: 3, reps: "conforme prescrição", unit: "reps", image: e.image }])) as Record<typeof womanExerciseCatalog[number]["id"], {sets: number; reps: string; unit: "reps"; image: string}> };

@@ -47,13 +47,13 @@ describe("workouts ownership", () => {
   it("scopes listing to the current account and blocks edits to another account's plan", async () => {
     dbMocks.getWorkoutPlans.mockResolvedValue([]);
     await callerFor(user).workouts.list();
-    expect(dbMocks.getWorkoutPlans).toHaveBeenCalledWith(42);
+    expect(dbMocks.getWorkoutPlans).toHaveBeenCalledWith(42, "man");
     dbMocks.updateWorkoutPlan.mockResolvedValue(undefined);
     await expect(callerFor(user).workouts.update({
       id: 900, name: "Plano alheio", objective: "Força", focusGroup: "Costas", durationMinutes: 45, notes: null,
       exercises: [{ exerciseId: "B01", sets: 3, reps: "8–12", loadKg: null, restSeconds: 90, note: null }],
     })).rejects.toMatchObject({ code: "NOT_FOUND" });
-    expect(dbMocks.updateWorkoutPlan).toHaveBeenCalledWith(42, 900, expect.any(Object));
+    expect(dbMocks.updateWorkoutPlan).toHaveBeenCalledWith(42, 900, expect.any(Object), "man");
   });
 
   it("requires a validated session for the workout library", async () => {
