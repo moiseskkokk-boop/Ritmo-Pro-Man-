@@ -16,7 +16,6 @@ const WorkoutsLibrary = lazy(() =>
   }))
 );
 const LegalPage = lazy(() => import("./pages/Legal"));
-const SmartwatchPage = lazy(() => import("./pages/Smartwatch"));
 const WeeklyAssessmentPage = lazy(() => import("./pages/WeeklyAssessment"));
 const SubscriptionPage = lazy(() => import("./pages/Subscription"));
 const SignOutPage = lazy(() => import("./pages/SignOut"));
@@ -46,7 +45,6 @@ function Router() {
         <Route path={"/corpo"}>{() => <Fitness view="body" />}</Route>
         <Route path={"/historico"}>{() => <Fitness view="history" />}</Route>
         <Route path={"/coach"}>{() => <Fitness view="coach" />}</Route>
-        <Route path={"/smartwatch"} component={SmartwatchPage} />
         <Route path={"/avaliacao"} component={WeeklyAssessmentPage} />
         <Route path={"/assinatura"} component={SubscriptionPage} />
         <Route path={"/sair"} component={SignOutPage} />

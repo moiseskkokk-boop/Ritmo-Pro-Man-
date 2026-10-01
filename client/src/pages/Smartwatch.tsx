@@ -1,18 +1,34 @@
 import { useState } from "react";
-import { Link } from "wouter";
-import { useAuth } from "@/_core/hooks/useAuth";
+import type { inferRouterOutputs } from "@trpc/server";
+import type { AppRouter } from "../../../server/routers";
 import { trpc } from "@/lib/trpc";
-import { ArrowLeft, Camera, Sparkles, Watch } from "lucide-react";
 
-type Language = "pt" | "en" | "es";
-type Result = { activityDate:string|null; activityType:string|null; durationMinutes:number|null; activeCaloriesKcal:number|null; totalCaloriesKcal:number|null; averageHeartRate:number|null; maxHeartRate:number|null; distanceKm:number|null; steps:number|null; pace:string|null; speedKmh:number|null; heartRateZones:string[]; otherMetrics:string[]; confidence:"low"|"medium"|"high" };
-const copy={pt:{title:"Dados do smartwatch",intro:"Envie uma foto ou screenshot do resumo do seu smartwatch. O Gemini lê apenas os dados visíveis; você confere antes de registrar.",send:"Enviar foto do smartwatch",reading:"Lendo imagem…",found:"Dados identificados pela IA",confirm:"Confirmar dados",confirmed:"Dados confirmados pelo usuário",none:"Não identificado",login:"Entre para enviar a foto",back:"Painel"},en:{title:"Smartwatch data",intro:"Send a photo or screenshot of your smartwatch summary. Gemini reads only visible data; you review it before saving.",send:"Send smartwatch photo",reading:"Reading image…",found:"Data identified by AI",confirm:"Confirm data",confirmed:"User-confirmed data",none:"Not identified",login:"Sign in to send a photo",back:"Dashboard"},es:{title:"Datos del smartwatch",intro:"Envía una foto o captura del resumen de tu smartwatch. Gemini lee solo los datos visibles; tú los revisas antes de guardar.",send:"Enviar foto del smartwatch",reading:"Leyendo imagen…",found:"Datos identificados por IA",confirm:"Confirmar datos",confirmed:"Datos confirmados por el usuario",none:"No identificado",login:"Inicia sesión para enviar la foto",back:"Panel"}} as const;
-export default function SmartwatchPage(){
- const {user,loading}=useAuth(); const language=((localStorage.getItem("ritmo-language")||localStorage.getItem("ritmo-mf-language")||"pt") as Language); const c=copy[language]??copy.pt;
- const [result,setResult]=useState<Result|null>(null); const [imageDataUrl,setImageDataUrl]=useState(""); const [confirmed,setConfirmed]=useState(false); const [error,setError]=useState("");
- const analyze=trpc.progress.analyzeSmartwatchPhoto.useMutation({onSuccess:r=>{setResult(r);setConfirmed(false);setError("")},onError:e=>setError(e.message)}); const confirm=trpc.progress.confirmSmartwatchPhoto.useMutation({onSuccess:()=>{setConfirmed(true);setError("")},onError:e=>setError(e.message)});
- const pick=(file?:File)=>{if(!file)return; if(file.size>2_000_000){setError("Imagem muito grande. Use até 2 MB.");return} const reader=new FileReader(); reader.onload=()=>{const dataUrl=String(reader.result);setImageDataUrl(dataUrl);analyze.mutate({dataUrl,language})}; reader.readAsDataURL(file)};
- if(loading)return <main className="grid min-h-screen place-items-center">...</main>; if(!user)return <main className="grid min-h-screen place-items-center"><Link href="/login">{c.login}</Link></main>;
- const rows=result?[ ["Data",result.activityDate],["Atividade",result.activityType],["Duração",result.durationMinutes==null?null:`${result.durationMinutes} min`],["Calorias ativas",result.activeCaloriesKcal==null?null:`${result.activeCaloriesKcal} kcal`],["Calorias totais",result.totalCaloriesKcal==null?null:`${result.totalCaloriesKcal} kcal`],["FC média",result.averageHeartRate==null?null:`${result.averageHeartRate} bpm`],["FC máxima",result.maxHeartRate==null?null:`${result.maxHeartRate} bpm`],["Distância",result.distanceKm==null?null:`${result.distanceKm} km`],["Passos",result.steps],["Ritmo",result.pace],["Velocidade",result.speedKmh==null?null:`${result.speedKmh} km/h`] ]:[];
- return <main className="min-h-screen bg-[#0b0d0c] workout-workspace px-4 py-8 sm:px-8"><div className="mx-auto max-w-3xl"><Link href="/dashboard" className="inline-flex items-center gap-2 text-sm font-semibold"><ArrowLeft size={16}/>{c.back}</Link><div className="mt-8 rounded-3xl border bg-white p-6 text-slate-950"><div className="flex items-center gap-3"><Watch/><h1 className="text-2xl font-semibold">{c.title}</h1></div><p className="mt-2 text-sm text-slate-600">{c.intro}</p><label className="mt-6 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-emerald-950 px-4 py-3 font-semibold text-white"><Camera size={18}/>{analyze.isPending?c.reading:c.send}<input className="hidden" type="file" accept="image/jpeg,image/png,image/webp" disabled={analyze.isPending} onChange={e=>pick(e.target.files?.[0])}/></label>{error&&<p className="mt-4 text-sm text-red-700" role="alert">{error}</p>}{result&&<section className="mt-7"><h2 className="flex items-center gap-2 font-semibold"><Sparkles size={17}/>{confirmed?c.confirmed:c.found}</h2><div className="mt-4 grid gap-2 sm:grid-cols-2">{rows.map(([label,value])=><div key={String(label)} className="rounded-xl border p-3"><small className="text-slate-500">{label}</small><strong className="block">{value??c.none}</strong></div>)}</div>{result.heartRateZones.length>0&&<p className="mt-3 text-sm"><strong>Zonas:</strong> {result.heartRateZones.join(" · ")}</p>}{result.otherMetrics.length>0&&<p className="mt-2 text-sm"><strong>Outros:</strong> {result.otherMetrics.join(" · ")}</p>}<button className="mt-5 rounded-xl bg-emerald-950 px-4 py-3 font-semibold text-white disabled:opacity-50" disabled={confirmed||confirm.isPending} onClick={()=>{if(result&&imageDataUrl)confirm.mutate({dataUrl:imageDataUrl,result})}}>{confirmed?c.confirmed:c.confirm}</button></section>}</div></div></main>;
+type Result = inferRouterOutputs<AppRouter>["progress"]["analyzeSmartwatchPhoto"];
+type Modality = "Esteira" | "Bicicleta" | "Corrida livre";
+const labels: Record<string, string> = { activityDate: "Data visível", activityType: "Atividade visível", durationMinutes: "Duração (min)", activeCaloriesKcal: "Calorias ativas (kcal)", totalCaloriesKcal: "Calorias totais (kcal)", averageHeartRate: "FC média (bpm)", maxHeartRate: "FC máxima (bpm)", distanceKm: "Distância (km)", steps: "Passos", pace: "Ritmo", speedKmh: "Velocidade (km/h)", heartRateZones: "Zonas cardíacas (uma por linha)", otherMetrics: "Outros dados (um por linha)" };
+const numeric = new Set(["durationMinutes", "activeCaloriesKcal", "totalCaloriesKcal", "averageHeartRate", "maxHeartRate", "distanceKm", "steps", "speedKmh"]);
+export default function SessionSmartwatch({ sessionId, language, refresh }: { sessionId: string; language: "pt" | "en" | "es"; refresh: () => void }) {
+  const [result, setResult] = useState<Result | null>(null);
+  const [dataUrl, setDataUrl] = useState("");
+  const [modality, setModality] = useState<Modality>("Esteira");
+  const [error, setError] = useState("");
+  const [saved, setSaved] = useState(false);
+  const analyze = trpc.progress.analyzeSmartwatchPhoto.useMutation({ onSuccess: r => { setResult(r); setError(""); }, onError: e => setError(e.message) });
+  const confirm = trpc.progress.confirmSmartwatchPhoto.useMutation({ onSuccess: () => { setSaved(true); setDataUrl(""); refresh(); }, onError: e => setError(e.message) });
+  return <div className="session-smartwatch"><h3>Foto do smartwatch — Opcional</h3><p>Leia apenas métricas visíveis. Confira e corrija antes de confirmar. A foto não é necessária para concluir o treino.</p>
+    <label>Modalidade<select value={modality} onChange={e => { setModality(e.target.value as Modality); setSaved(false); }}>{["Esteira", "Bicicleta", "Corrida livre"].map(m => <option key={m}>{m}</option>)}</select></label>
+    <label>Foto ou screenshot<input type="file" accept="image/jpeg,image/png,image/webp" disabled={analyze.isPending || confirm.isPending} onChange={e => {
+      const file = e.target.files?.[0]; if (!file) return;
+      setResult(null); setSaved(false); setDataUrl("");
+      if (file.size > 2_000_000) { setError("Use uma imagem até 2 MB."); return; }
+      const reader = new FileReader(); reader.onload = () => { const url = String(reader.result); setDataUrl(url); analyze.mutate({ sessionId, modality, dataUrl: url, language }); }; reader.readAsDataURL(file);
+    }} /></label>
+    {analyze.isPending && <p role="status">Lendo imagem…</p>}
+    {result && !saved && <><p>Valores ausentes ficam em branco; não estime.</p><div className="fitness-grid">{Object.entries(labels).map(([key, label]) => {
+      const value = result[key as keyof Result]; const array = Array.isArray(value);
+      return <label key={key}>{label}<input type={numeric.has(key) ? "number" : "text"} min={numeric.has(key) ? 0 : undefined} step="any" value={array ? value.join("; ") : value ?? ""} onChange={e => { const raw = e.target.value; setResult({ ...result, [key]: array ? raw.split(";").map(x => x.trim()).filter(Boolean) : numeric.has(key) ? raw === "" ? null : Number(raw) : raw || null }); }} /></label>;
+    })}</div><button disabled={confirm.isPending || !dataUrl} onClick={() => confirm.mutate({ sessionId, modality, dataUrl, result })}>Confirmar e salvar dados desta sessão</button></>}
+    {saved && <p role="status">Foto e métricas confirmadas salvas nesta sessão.</p>}
+    {error && <p role="alert">{error}</p>}
+  </div>;
 }

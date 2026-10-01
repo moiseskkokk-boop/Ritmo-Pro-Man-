@@ -428,3 +428,10 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible { 
 .workout-workspace [class*="text-emerald-"] { color:#b7f34a; }
 .workout-workspace [class*="border"] { border-color:#394239; }
 .workout-workspace button,.workout-workspace a { min-height:44px; }
+
+.session-correct { display:inline-block; background:#b7f34a !important; color:#101311 !important; border:2px solid #b7f34a !important; padding:10px 18px; border-radius:10px; font-weight:800; cursor:pointer; }
+.session-smartwatch { margin:24px 0; padding-top:20px; border-top:1px solid #64704f; }
+
+.session-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin:18px 0; }
+.session-cards .fitness-log { margin:0; padding:16px; }
+.photos-section .photo-grid { grid-template-columns:minmax(0,360px); justify-content:center; }

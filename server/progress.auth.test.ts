@@ -61,7 +61,7 @@ describe("progress procedures", () => {
     const photo = `data:image/jpeg;base64,${Buffer.alloc(20).toString("base64")}`;
     await expect(caller.progress.analyzeBody({
       language: "pt",
-      photos: { front: photo, back: photo, right: photo, left: photo },
+      photos: { front: photo },
     })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 });

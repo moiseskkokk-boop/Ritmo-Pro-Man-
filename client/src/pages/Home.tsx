@@ -299,7 +299,7 @@ const copy = {
   pt: {
     lang: "Idioma",
     profile: "Perfil",
-    training: "Treino + Smartwatch",
+    training: "Treino",
     bodyAnalysis: "Análise Corporal",
     heroKicker: "SEU TREINO, NO SEU RITMO",
     hello: "Olá",
@@ -327,9 +327,9 @@ const copy = {
     day5Status: "NÃO ATIVADO",
     day5Action: "Ver como funciona",
     photosKicker: "/ ACOMPANHAMENTO MENSAL",
-    photosTitle: "Suas 4 fotos do mês",
+    photosTitle: "Sua foto frontal do mês",
     photosLead:
-      "Envie frente, costas e os dois lados com iluminação e postura semelhantes. A análise visual será uma estimativa transparente, não uma medição clínica.",
+      "Telefone reto e centrado, postura natural, sem pose. Mulher: top e shorts curtos. Homem: shorts curtos, sem camisa. Estimativa visual, não diagnóstico.",
     selectPhoto: "Selecionar foto",
     analysisPending: "Aguardando análise segura",
     before: "ANTES DE COMEÇAR",
@@ -340,7 +340,7 @@ const copy = {
   en: {
     lang: "Language",
     profile: "Profile",
-    training: "Training + Smartwatch",
+    training: "Training",
     bodyAnalysis: "Body Analysis",
     heroKicker: "YOUR TRAINING, YOUR RHYTHM",
     hello: "Hello",
@@ -368,9 +368,9 @@ const copy = {
     day5Status: "NOT ACTIVE",
     day5Action: "See how it works",
     photosKicker: "/ MONTHLY TRACKING",
-    photosTitle: "Your 4 monthly photos",
+    photosTitle: "Your monthly frontal photo",
     photosLead:
-      "Send front, back and both sides with similar lighting and posture. Visual analysis is an estimate, never a clinical measurement.",
+      "Phone straight and centered, natural stance, no pose. Women: top and short shorts. Men: short shorts, shirtless. Visual estimate, not diagnosis.",
     selectPhoto: "Select photo",
     analysisPending: "Waiting for secure analysis",
     before: "BEFORE YOU START",
@@ -382,7 +382,7 @@ const copy = {
   es: {
     lang: "Idioma",
     profile: "Perfil",
-    training: "Entrenamiento + Smartwatch",
+    training: "Entrenamiento",
     bodyAnalysis: "Análisis Corporal",
     heroKicker: "TU ENTRENAMIENTO, TU RITMO",
     hello: "Hola",
@@ -410,9 +410,9 @@ const copy = {
     day5Status: "NO ACTIVADO",
     day5Action: "Ver cómo funciona",
     photosKicker: "/ SEGUIMIENTO MENSUAL",
-    photosTitle: "Tus 4 fotos del mes",
+    photosTitle: "Tu foto frontal del mes",
     photosLead:
-      "Envía frente, espalda y ambos lados con iluminación y postura similares. El análisis visual es una estimación, no una medición clínica.",
+      "Teléfono recto y centrado, postura natural, sin posar. Mujer: top y pantalón corto. Hombre: pantalón corto, sin camiseta. Estimación visual, no diagnóstico.",
     selectPhoto: "Seleccionar foto",
     analysisPending: "Esperando análisis seguro",
     before: "ANTES DE EMPEZAR",
@@ -1261,7 +1261,7 @@ const accountCopy = {
       "Apague avaliações, métricas, registros e fotos para iniciar uma nova fase. Sua conta e seu login permanecem ativos.",
     restart: "Recomeçar agora",
     restartConfirm:
-      "Isso apagará todas as avaliações, informações de treino, métricas e as 4 fotos desta conta. Sua conta e seu login serão mantidos. Deseja recomeçar?",
+      "Isso apagará todas as avaliações, informações de treino, métricas e as fotos desta conta. Sua conta e seu login serão mantidos. Deseja recomeçar?",
     restarted:
       "Avaliações, informações e fotos apagadas. Você pode começar novamente.",
   },
@@ -1279,7 +1279,7 @@ const accountCopy = {
       "Delete assessments, metrics, records and photos to begin a new phase. Your account and login stay active.",
     restart: "Start fresh",
     restartConfirm:
-      "This will delete all assessments, workout information, metrics and the 4 photos from this account. Your account and login will remain. Start again?",
+      "This will delete all assessments, workout information, metrics and the photos from this account. Your account and login will remain. Start again?",
     restarted:
       "Assessments, information and photos deleted. You can start again.",
   },
@@ -1297,7 +1297,7 @@ const accountCopy = {
       "Borra evaluaciones, métricas, registros y fotos para iniciar una nueva etapa. Tu cuenta y sesión seguirán activas.",
     restart: "Empezar de cero",
     restartConfirm:
-      "Esto borrará todas las evaluaciones, información de entrenamiento, métricas y las 4 fotos de esta cuenta. Tu cuenta y sesión se mantendrán. ¿Empezar de nuevo?",
+      "Esto borrará todas las evaluaciones, información de entrenamiento, métricas y las fotos de esta cuenta. Tu cuenta y sesión se mantendrán. ¿Empezar de nuevo?",
     restarted:
       "Evaluaciones, información y fotos borradas. Puedes comenzar de nuevo.",
   },
@@ -1671,27 +1671,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
   };
   const displayName =
     user?.name?.trim() || user?.email?.split("@")[0] || "Cliente";
-  const photoLabels =
-    language === "en"
-      ? [
-          { key: "front", label: "Front" },
-          { key: "back", label: "Back" },
-          { key: "right", label: "Right side" },
-          { key: "left", label: "Left side" },
-        ]
-      : language === "es"
-        ? [
-            { key: "front", label: "Frente" },
-            { key: "back", label: "Espalda" },
-            { key: "right", label: "Lado derecho" },
-            { key: "left", label: "Lado izquierdo" },
-          ]
-        : [
-            { key: "front", label: "Frente" },
-            { key: "back", label: "Costas" },
-            { key: "right", label: "Lado direito" },
-            { key: "left", label: "Lado esquerdo" },
-          ];
+  const photoLabels = [{ key: "front", label: language === "en" ? "Front" : "Frente" }];
   const totalDone = useMemo(
     () => Object.values(completed).filter(Boolean).length,
     [completed]
@@ -2070,11 +2050,11 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
   };
   const analyzeBody = () => {
     const selected = photoFiles;
-    if (!user || Object.values(selected).some(value => !value)) return;
+    if (!user || !selected.front) return;
     setBodyNotice("");
     analyzeBodyMutation.mutate({
       language,
-      photos: { front: selected.front!, back: selected.back!, right: selected.right!, left: selected.left! },
+      photos: { front: selected.front! },
     });
   };
 
@@ -2157,11 +2137,10 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
           </span>
         </a>
         <nav className="main-nav">
-          <a href="/dashboard">Painel</a>
+          <a href="/dashboard">{language === "en" ? "Home" : language === "es" ? "Inicio" : "Início"}</a>
           <a href="/perfil">{c.profile}</a>
           <a href="/treino">{c.training}</a>
           <a href="/treinos">Meus treinos</a>
-          <a href="/smartwatch">Smartwatch</a>
           <a href="/alimentacao">Alimentação e água</a>
           <a href="/avaliacao">Avaliação</a>
           <a href="/analise">{c.bodyAnalysis}</a>
@@ -2622,82 +2601,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
                 </div>
               ) : (
                 <>
-                  <div className="male-smartwatch-panel">
-                    <div className="male-smartwatch-top">
-                      <div>
-                        <span className="smartwatch-kicker">{language === "en" ? "/ SMARTWATCH DATA" : language === "es" ? "/ DATOS DEL SMARTWATCH" : "/ DADOS DO SMARTWATCH"}</span>
-                        <h3><Watch size={22} /> {language === "en" ? "Smartwatch photo" : language === "es" ? "Foto del smartwatch" : "Foto do smartwatch"}</h3>
-                        <p>{language === "en" ? "Upload the workout summary shown on your watch or health app." : language === "es" ? "Sube el resumen del entrenamiento mostrado en tu reloj o app de salud." : "Envie o resumo do treino mostrado no relógio ou app de saúde."}</p>
-                      </div>
-                      <span className="smartwatch-privacy"><ShieldCheck size={14} /> {language === "en" ? "Confirm before saving" : language === "es" ? "Confirma antes de guardar" : "Confirme antes de salvar"}</span>
-                    </div>
 
-                    <div className="smartwatch-link-grid">
-                      <button className="dark-btn smartwatch-import" onClick={() => window.location.assign("/smartwatch") }>
-                        <FileUp size={16} />
-                        {language === "en" ? "Send smartwatch photo" : language === "es" ? "Enviar foto del smartwatch" : "Enviar foto do smartwatch"}
-                      </button>
-                    </div>
-                    <p className="smartwatch-disclaimer">
-                      {language === "en"
-                        ? "Send a photo or screenshot. Gemini reads the visible metrics, you confirm the values, and only then are they saved."
-                        : language === "es"
-                          ? "Envía una foto o captura. Gemini lee las métricas visibles, tú confirmas los valores y solo entonces se guardan."
-                          : "Envie uma foto ou screenshot. O Gemini lê as métricas visíveis, você confirma os valores e só então elas são salvas."}
-                    </p>
-
-                    <div className="smartwatch-metrics">
-                      {[
-                        { label: d.workouts, value: `${weeklyActivityAnalysis.data?.workoutsCompleted ?? 0}/4`, Icon: Activity },
-                        { label: d.calories, value: weeklyActivityAnalysis.data?.workoutCaloriesKcal != null ? `${weeklyActivityAnalysis.data.workoutCaloriesKcal} kcal` : d.noValue, Icon: Activity },
-                        { label: d.activeCalories, value: weeklyActivityAnalysis.data?.activityCaloriesKcal != null ? `${weeklyActivityAnalysis.data.activityCaloriesKcal} kcal` : d.noValue, Icon: Activity },
-                        { label: d.totalCalories, value: weeklyActivityAnalysis.data?.totalCaloriesKcal != null ? `${weeklyActivityAnalysis.data.totalCaloriesKcal} kcal` : d.noValue, Icon: Activity },
-                        { label: d.duration, value: weeklyActivityAnalysis.data?.durationMinutes != null ? `${weeklyActivityAnalysis.data.durationMinutes} min` : d.noValue, Icon: Clock3 },
-                        { label: d.heartRate, value: weeklyActivityAnalysis.data?.averageHeartRate != null ? `${weeklyActivityAnalysis.data.averageHeartRate} bpm` : d.noValue, Icon: HeartPulse },
-                      ].map(({ label, value, Icon: MetricIcon }) => (
-                        <div key={label} className="smartwatch-metric-card">
-                          <MetricIcon size={16} />
-                          <span>{label}</span>
-                          <strong>{value}</strong>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="smartwatch-history-heading">
-                      <div><span className="smartwatch-kicker">{d.weekHistory}</span><h4>{d.dailyActivity}</h4></div>
-                      <RefreshCw size={15} className={weeklyActivityAnalysis.isFetching ? "animate-spin" : ""} />
-                    </div>
-                    {wearableActivities.data?.length || weeklyActivityAnalysis.data?.dailySummaries?.length ? (
-                      <div className="smartwatch-daily-grid">
-                        {Array.from(new Set([...(wearableActivities.data ?? []).map(activity => activity.activityDate), ...(weeklyActivityAnalysis.data?.dailySummaries ?? []).map(day => day.date)])).slice(0, 7).map(date => {
-                          const dayActivities = wearableActivities.data?.filter(activity => activity.activityDate === date) ?? [];
-                          const dailySummary = weeklyActivityAnalysis.data?.dailySummaries.find(day => day.date === date);
-                          const activityCalories = dayActivities.reduce((sum, item) => sum + (item.caloriesKcal ?? 0), 0);
-                          const calories = dailySummary?.workoutCaloriesKcal ?? (dayActivities.some(item => item.caloriesKcal != null) ? activityCalories : null);
-                          const steps = dailySummary?.steps ?? (dayActivities.some(item => item.steps != null) ? dayActivities.reduce((sum, item) => sum + (item.steps ?? 0), 0) : null);
-                          const manual = dayActivities.some(item => item.sourceType === "manual_import");
-                          return <div key={date} className="smartwatch-day-card">
-                            <span>{new Date(`${date}T12:00:00`).toLocaleDateString(d.locale, { weekday: "short", day: "2-digit", month: "2-digit" })}</span>
-                            <p>{dailySummary?.activityCount ?? dayActivities.length} {d.activitySingular}{manual ? " · " + d.manualImport : ""}</p>
-                            <small>{calories != null ? `${calories} kcal` : d.noValue} · {steps != null ? `${steps} ${d.steps.toLowerCase()}` : d.noValue}</small>
-                          </div>;
-                        })}
-                      </div>
-                    ) : (
-                      <div className="smartwatch-empty">{d.noData}</div>
-                    )}
-
-                    <div className="smartwatch-detail-grid">
-                      <div><span>{d.cardio}</span><strong>{weeklyActivityAnalysis.data?.cardioMinutes ?? d.noValue}{weeklyActivityAnalysis.data?.cardioMinutes != null ? " min" : ""}</strong></div>
-                      <div><span>{d.steps}</span><strong>{weeklyActivityAnalysis.data?.steps ?? d.noValue}</strong></div>
-                      <div><span>{d.distance}</span><strong>{weeklyActivityAnalysis.data?.distanceKm ?? d.noValue}{weeklyActivityAnalysis.data?.distanceKm != null ? " km" : ""}</strong></div>
-                      <div><span>{d.sleep}</span><strong>{weeklyActivityAnalysis.data?.sleepMinutes ?? d.noValue}{weeklyActivityAnalysis.data?.sleepMinutes != null ? " min" : ""}</strong></div>
-                      <div><span>{d.maxHeartRate}</span><strong>{weeklyActivityAnalysis.data?.maxHeartRate ?? d.noValue}{weeklyActivityAnalysis.data?.maxHeartRate != null ? " bpm" : ""}</strong></div>
-                      <div><span>{d.activityDays}</span><strong>{weeklyActivityAnalysis.data?.activityDays ?? d.noValue}</strong></div>
-                    </div>
-
-                    <p className="smartwatch-disclaimer">{d.explanation}</p>
-                  </div>
                 </>
               )}
             </section>
@@ -3068,7 +2972,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
                     ? "Estimaciones basadas en imágenes, no mediciones. Este análisis no diagnostica lesiones, alergias, deficiencias ni enfermedades. Ante cualquier sospecha, consulta a un profesional cualificado."
                     : "Resultados estimados com base nas imagens e dados fornecidos, não são medições clínicas. A análise não diagnostica lesões, alergias, deficiências ou condições médicas. Se houver suspeita ou informação relevante, procure um profissional qualificado."}
               </p>
-              <button className="outline-btn" disabled={!user || Object.values(photoFiles).some(value => !value) || analyzeBodyMutation.isPending} onClick={analyzeBody}>
+              <button className="outline-btn" disabled={!user || !photoFiles.front || analyzeBodyMutation.isPending} onClick={analyzeBody}>
                 <Sparkles size={14} /> {analyzeBodyMutation.isPending ? d.analyzing : language === "en" ? "Analyze this month" : language === "es" ? "Analizar este mes" : "Analisar este mês"}
               </button>
               {bodyNotice && <p role="status" className="photo-disclaimer">{bodyNotice}</p>}

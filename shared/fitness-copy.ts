@@ -1,7 +1,7 @@
 export type Language = "pt" | "en" | "es";
 const pt = {
   retract: "Desmarcar série",
-  dashboard: "Dashboard",
+  dashboard: "Início",
   training: "Treino",
   wellness: "Alimentação, água e cardio",
   body: "Corpo e progresso",
@@ -122,7 +122,7 @@ const pt = {
 type Copy = { [K in keyof typeof pt]: string };
 const en: Copy = {
   retract: "Unconfirm set",
-  dashboard: "Dashboard",
+  dashboard: "Home",
   training: "Training",
   wellness: "Food, water and cardio",
   body: "Body and progress",
@@ -239,7 +239,7 @@ const en: Copy = {
 };
 const es: Copy = {
   retract: "Desmarcar serie",
-  dashboard: "Panel",
+  dashboard: "Inicio",
   training: "Entrenamiento",
   wellness: "Alimentación, agua y cardio",
   body: "Cuerpo y progreso",

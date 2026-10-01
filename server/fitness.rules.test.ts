@@ -254,7 +254,7 @@ describe("fitness domain rules", () => {
     for (const query of [
       () => caller.fitness.overview(),
       () => caller.fitness.coachHistory(),
-      () => caller.fitness.session({ activityDate: "2026-09-29" }),
+      () => caller.fitness.session({ sessionId: set.sessionId }),
       () => caller.fitness.photo({ key: "fitness/42/abc_ab12cd34.jpg" }),
     ])
       await expect(query()).rejects.toMatchObject({ code: "UNAUTHORIZED" });

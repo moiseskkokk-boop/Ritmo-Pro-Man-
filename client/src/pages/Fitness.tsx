@@ -1,5 +1,5 @@
+import SessionSmartwatch from "./Smartwatch";
 import { localizeExercise } from "@shared/exercise-translations";
-import { wearableState, wearableStateLabels } from "@shared/wearable-status";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../server/routers";
 import { useEffect, useState } from "react";
@@ -145,16 +145,19 @@ function Training({
       : data.nextSuggested
   );
   const [note, setNote] = useState("");
-  const [date, setDate] = useState(data.today);
-  const selectedSession = trpc.fitness.session.useQuery({ activityDate: date });
-  const session =
-    selectedSession.data ?? data.sessions.find(s => s.activityDate === date);
-  const start = trpc.fitness.start.useMutation({ onSuccess: refresh });
+  const [date, setDate] = useState(() => data.sessions.find(s => s.id === new URLSearchParams(window.location.search).get("session"))?.activityDate ?? data.today);
+  const [activeId, setActiveId] = useState<string | null>(() => new URLSearchParams(window.location.search).get("session") ?? null);
+  const [editing, setEditing] = useState(() => Boolean(new URLSearchParams(window.location.search).get("session")));
+  const daySessions = data.sessions.filter(s => s.activityDate === date);
+  const selectedSession = trpc.fitness.session.useQuery({ sessionId: activeId ?? "" }, { enabled: !!activeId && activeId !== "new" });
+  const session = activeId ? data.sessions.find(s => s.id === activeId) ?? selectedSession.data : daySessions.find(s => s.status === "in_progress");
+  useEffect(() => { if (session && activeId && activeId !== "new") setDate(session.activityDate); }, [session?.id, session?.activityDate, activeId]);
+  useEffect(() => { setNote(session?.note ?? ""); }, [session?.id, session?.note]);
+  const summarize = trpc.fitness.summarize.useMutation({ onSuccess: refresh });
+  const preferences = trpc.fitness.preferences.useMutation({ onSuccess: refresh });
+  const start = trpc.fitness.start.useMutation({ onSuccess: row => { setActiveId(row.id); setEditing(row.status === "completed"); refresh(); } });
   const finish = trpc.fitness.finish.useMutation({
-    onSuccess: () => {
-      setNote("");
-      refresh();
-    },
+    onSuccess: (_result, input) => { setEditing(false); refresh(); summarize.mutate({ sessionId: input.sessionId }); },
   });
   const custom = data.plans.find(p => `plan:${p.id}` === selection);
   const preview: TrainingSnapshot = custom
@@ -170,7 +173,7 @@ function Training({
       );
   const plan = session?.snapshot ?? preview;
   const total = plan.exercises.reduce((sum, e) => sum + e.sets, 0);
-  const readOnly = date !== data.today;
+  const readOnly = date !== data.today && session?.status !== "completed";
   return (
     <>
       <section className={panel}>
@@ -184,10 +187,18 @@ function Training({
           <input
             type="date"
             value={date}
-            onChange={e => setDate(e.target.value)}
+            onChange={e => { setDate(e.target.value); setActiveId(null); setEditing(false); }}
           />
         </label>
-        <p>{date === data.today ? c.todayOnly : c.historyReadOnly}</p>
+        <p>{date === data.today ? c.todayOnly : "Sessões concluídas podem ser corrigidas; novos registros somente hoje."}</p>
+        <label>Treinos por semana<select value={data.preferences.workoutsPerWeek} disabled={preferences.isPending} onChange={e => preferences.mutate({ ...data.preferences, workoutsPerWeek: Number(e.target.value) })}>{[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n}</option>)}</select></label>
+        {preferences.error && <p role="alert">{preferences.error.message}</p>}
+        <div className="session-cards">{daySessions.map(row => <article key={row.id} className="fitness-log">
+          <p>{row.activityDate} · {new Date(row.startedAt).toLocaleTimeString()} · {row.status === "completed" ? c.finished : c.inProgress}</p>
+          <h2>{row.snapshot.name}</h2><p>{row.sets.length} {c.confirmedSets} · {row.metrics.repetitions ?? c.unknown} {c.reps}</p>
+          <button className="session-correct" onClick={() => { setActiveId(row.id); setEditing(row.status === "completed"); }}>{row.status === "completed" ? "Abrir / Corrigir" : "Continuar"}</button>
+        </article>)}</div>
+        {daySessions.length > 0 && date === data.today && <button onClick={() => { setActiveId("new"); setEditing(false); }}>Iniciar outro treino</button>}
         {!session && (
           <>
             <label>
@@ -241,16 +252,12 @@ function Training({
             <p>{c.partialHelp}</p>
           </>
         )}
-        {selectedSession.error && (
-          <p role="alert">{selectedSession.error.message}</p>
-        )}
-        {date !== data.today && !session && (
-          <p>{selectedSession.isLoading ? c.loading : c.noTraining}</p>
-        )}
+        {date !== data.today && !daySessions.length && <p>{c.noTraining}</p>}
         {start.error && <p role="alert">{start.error.message}</p>}
+        {selectedSession.error && <p role="alert">{selectedSession.error.message}</p>}
         <Link href="/treinos">{c.library} →</Link>
       </section>
-      {(session || date === data.today) &&
+      {(session || date === data.today) && (session?.status !== "completed" || editing) &&
         plan.exercises.map((e, index) => (
           <article
             className={panel}
@@ -291,7 +298,7 @@ function Training({
                   saved={session.sets.find(
                     s => s.exerciseIndex === index && s.setIndex === setIndex
                   )}
-                  disabled={readOnly || session.status === "completed"}
+                  disabled={readOnly || (session.status === "completed" && !editing)}
                   onSaved={refresh}
                 />
               ))
@@ -306,9 +313,14 @@ function Training({
           <h2>{session.snapshot.originalId ? `${c.suggested} ${originalIds.indexOf(session.snapshot.originalId) + 1}` : session.snapshot.name}</h2>
           <p>{c.finished}</p>
           {session.note && <p><strong>{c.sessionNote}:</strong> {session.note}</p>}
+          <button className="session-correct" onClick={() => setEditing(!editing)}>{editing ? "Fechar detalhes" : "Abrir / Corrigir"}</button>
+          {session.smartwatch && <><h3>{session.smartwatch.modality}</h3><PrivatePhoto photoKey={session.smartwatch.photoKey} c={c} /><div>{Object.entries(session.smartwatch.metrics).filter(([, value]) => value !== null).map(([key, value]) => <p key={key}>{key}: {Array.isArray(value) ? value.join(" · ") : String(value)}</p>)}</div></>}
+          {session.summary && <p className="fitness-answer">{session.summary}</p>}
+          <button disabled={summarize.isPending} onClick={() => summarize.mutate({ sessionId: session.id })}>{summarize.isPending ? "Gerando resumo…" : session.summary ? "Atualizar resumo com IA" : "Gerar resumo com IA"}</button>
+          {summarize.error && <p role="alert">{summarize.error.message}</p>}
         </section>
       )}
-      {session && session.status !== "completed" && !readOnly && (
+      {session && (session.status !== "completed" || editing) && !readOnly && (
         <section className={panel}>
           <label>
             {c.sessionNote}
@@ -333,13 +345,14 @@ function Training({
               onChange={e => setNote(e.target.value)}
             />
           </label>
+          <SessionSmartwatch key={session.id} sessionId={session.id} language={language} refresh={refresh} />
           <button
             disabled={finish.isPending || !session.sets.length}
             onClick={() =>
               finish.mutate({ sessionId: session.id, note, confirmed: true })
             }
           >
-            {c.finish}
+            {session.status === "completed" ? "Salvar correções" : c.finish}
           </button>
           {finish.error && <p role="alert">{finish.error.message}</p>}
         </section>
@@ -972,13 +985,13 @@ function History({
     s.sets.map(t => ({ ...t, date: s.activityDate, status: s.status }))
   );
   const ids = Array.from(new Set(allSets.map(s => s.exerciseId)));
-  const dates = data.trainingDates;
+  const dates = Array.from(new Set(data.trainingDates));
   return (
     <>
       <section className={panel}>
         <h1>{c.history}</h1>
         <p>
-          {data.from} — {data.today} · {dates.length} {c.finishedSessions} ·{" "}
+          {data.from} — {data.today} · {data.trainingDates.length} {c.finishedSessions} ·{" "}
           {dates.length ? Math.round((dates.length / 90) * 100) : 0}%{" "}
           {c.trainingDays}
         </p>
@@ -999,6 +1012,7 @@ function History({
               {s.metrics.repetitions ?? c.unknown}
             </p>
             <p>{s.note}</p>
+            <Link className="session-correct" href={`/treino?session=${s.id}`}>Abrir / Corrigir</Link>
           </article>
         ))}
       </section>
@@ -1140,28 +1154,6 @@ function Dashboard({
           <Link href="/corpo">{c.progress} →</Link>
         </section>
         <section className={panel}>
-          <h2>{c.smartwatch}</h2>
-          {data.connections.length ? (
-            data.connections.map(conn => (
-              <p key={conn.id}>
-                {conn.provider}:{" "}
-                {
-                  wearableStateLabels[language][
-                    wearableState(
-                      conn.provider,
-                      conn,
-                      data.activities.some(a => a.provider === conn.provider)
-                    )
-                  ]
-                }
-              </p>
-            ))
-          ) : (
-            <p>{c.disconnected}</p>
-          )}
-          <Link href="/smartwatch">{c.connect} →</Link>
-        </section>
-        <section className={panel}>
           <h2>AI Coach</h2>
           <p>{c.coachHelp}</p>
           <Link href="/coach">{c.ask} →</Link>
@@ -1232,7 +1224,6 @@ export default function Fitness({
             ["/corpo", c.body],
             ["/historico", c.history],
             ["/coach", "AI Coach"],
-            ["/smartwatch", c.smartwatch],
             ["/perfil", c.profile],
           ].map(([href, label]) => (
             <Link key={href} href={href}>

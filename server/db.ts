@@ -1,6 +1,7 @@
 import { and, desc, eq, gt, gte, isNull, lte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
+import { postgresConnectionOptions } from "./_core/postgres-connection";
 import { BodyAnalysis, InsertUser, authEmailTokens, authRateLimits, bodyAnalyses, dailyLogs, mercadoPagoWebhookEvents, subscriptionPayments, subscriptionPlans, userSubscriptions, users, wearableActivities, wearableConnections, wearableOauthStates, wearableDailySummaries, weeklyAssessments, workoutPlans, trainingSessions } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { canClaimWebhookEvent } from "./mercadopago";
@@ -11,7 +12,7 @@ let _db: ReturnType<typeof drizzle> | null = null;
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.DATABASE_URL.includes("localhost") ? undefined : { rejectUnauthorized: false } }));
+      _db = drizzle(new Pool(postgresConnectionOptions(process.env.DATABASE_URL)));
     } catch {
       console.warn("[Database] Connection configuration unavailable");
       _db = null;

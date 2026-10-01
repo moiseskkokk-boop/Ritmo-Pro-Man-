@@ -80,6 +80,7 @@ export const measurementSchema = z
   );
 export const preferencesSchema = z.object({
   language: languageSchema.default("pt"),
+  workoutsPerWeek: z.number().int().min(1).max(7).default(4),
   waterGoalMl: z.number().int().min(250).max(10000).default(2000),
   age: z.number().int().min(18).max(110).nullable().default(null),
   sex: z

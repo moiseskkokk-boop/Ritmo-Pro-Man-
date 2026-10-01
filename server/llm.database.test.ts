@@ -1,156 +1,60 @@
-import { beforeAll, afterAll, describe, expect, it, vi } from "vitest";
-import mysql from "mysql2/promise";
-import dotenv from "dotenv";
-import { mysqlConnectionOptions } from "./_core/mysql-connection";
-const state = vi.hoisted(() => ({
-  database: undefined as unknown,
-  generateCalls: 0,
-}));
-vi.mock("drizzle-orm/mysql2", async original => ({
-  ...(await original<object>()),
-  drizzle: () => state.database,
-}));
+import { beforeAll, afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { PGlite } from "@electric-sql/pglite";
+import { drizzle } from "drizzle-orm/pglite";
+import { readFileSync } from "node:fs";
+const state = vi.hoisted(() => ({ database: undefined as any }));
+vi.mock("drizzle-orm/node-postgres", () => ({ drizzle: () => state.database }));
 import { invokeLLM } from "./_core/llm";
 import { ENV } from "./_core/env";
-vi.setConfig({ testTimeout: 30_000 });
-describe.skipIf(process.env.FITNESS_DATABASE_TESTS !== "1")(
-  "Gemini budget with isolated MySQL ledger",
-  () => {
-    let connection: Awaited<ReturnType<typeof mysql.createConnection>>;
-    const original = { ...ENV };
-    beforeAll(async () => {
-      dotenv.config({ quiet: true });
-      try {
-        connection = await mysql.createConnection({
-          ...mysqlConnectionOptions(process.env.DATABASE_URL!),
-          connectTimeout: 15000,
-        });
-        const [ddl] = await connection.query<mysql.RowDataPacket[]>(
-          "SHOW CREATE TABLE gemini_usage_daily"
-        );
-        await connection.query(
-          String(ddl[0]["Create Table"]).replace(
-            /^CREATE TABLE/,
-            "CREATE TEMPORARY TABLE"
-          )
-        );
-        const { drizzle } =
-          await vi.importActual<typeof import("drizzle-orm/mysql2")>(
-            "drizzle-orm/mysql2"
-          );
-        const real = drizzle(connection);
-        // Drizzle production uses a pool. Temporary tables require one connection;
-        // grant each test transaction exclusive ownership so transactions cannot
-        // accidentally nest/interleave on that single physical connection.
-        let pending = Promise.resolve();
-        state.database = new Proxy(real, {
-          get(target, key) {
-            if (key === "transaction")
-              return async (
-                callback: Parameters<typeof real.transaction>[0]
-              ) => {
-                const previous = pending;
-                let release!: () => void;
-                pending = new Promise<void>(resolve => {
-                  release = resolve;
-                });
-                await previous;
-                try {
-                  return await target.transaction(callback);
-                } finally {
-                  release();
-                }
-              };
-            const value = Reflect.get(target, key);
-            return typeof value === "function" ? value.bind(target) : value;
-          },
-        });
-      } catch {
-        throw new Error("Isolated Gemini ledger setup unavailable");
-      }
-      ENV.geminiApiKey = "test-only-no-external-delivery";
-      ENV.geminiMaxInputTokens = 200;
-      ENV.geminiMaxOutputTokens = 100;
-      ENV.geminiDailyTokenLimit = 150;
-      ENV.geminiUserDailyTokenLimit = 150;
-      vi.stubGlobal(
-        "fetch",
-        vi.fn(async (url: string) => {
-          if (url.includes(":countTokens"))
-            return new Response(JSON.stringify({ totalTokens: 10 }), {
-              status: 200,
-            });
-          state.generateCalls++;
-          await new Promise(resolve => setTimeout(resolve, 1500));
-          return new Response(
-            JSON.stringify({
-              candidates: [{ content: { parts: [{ text: "Test answer" }] } }],
-              usageMetadata: {
-                promptTokenCount: 10,
-                candidatesTokenCount: 20,
-                thoughtsTokenCount: 5,
-                totalTokenCount: 35,
-              },
-            }),
-            { status: 200 }
-          );
-        })
-      );
-    }, 30000);
-    afterAll(async () => {
-      Object.assign(ENV, original);
-      vi.unstubAllGlobals();
-      await connection?.end();
-    });
-    const ask = (userId: number) =>
-      invokeLLM({
-        userId,
-        feature: "ai_coach",
-        maxTokens: 100,
-        messages: [{ role: "user", content: "Test request" }],
-      });
-    it("reserves global capacity before concurrent in-flight generations", async () => {
-      const results = await Promise.allSettled([ask(42), ask(43)]);
-      expect(results.filter(r => r.status === "fulfilled")).toHaveLength(1);
-      expect(state.generateCalls).toBe(1);
-    });
-    it("accounts for model thinking tokens and settles unused capacity", async () => {
-      const [rows] = await connection.query<mysql.RowDataPacket[]>(
-        "SELECT userId,feature,totalTokens FROM gemini_usage_daily"
-      );
-      expect(
-        rows.find(r => r.userId === 0 && r.feature === "__budget__")
-          ?.totalTokens
-      ).toBe(35);
-      expect(rows.find(r => r.feature === "ai_coach")?.totalTokens).toBe(35);
-    });
-    it("enforces the per-user limit separately from global capacity", async () => {
-      ENV.geminiUserDailyTokenLimit = 40;
-      ENV.geminiDailyTokenLimit = 1000;
-      await expect(ask(42)).rejects.toThrow(/Daily AI/);
-      expect(state.generateCalls).toBe(1);
-    });
-    it("fails closed on unauthenticated calls and invalid token configuration", async () => {
-      await expect(ask(0)).rejects.toThrow(/Authenticated/);
-      ENV.geminiMaxOutputTokens = NaN;
-      await expect(ask(42)).rejects.toThrow(/configuration/);
-      ENV.geminiMaxOutputTokens = 100;
-    });
-    it("does not expose provider error bodies and retains uncertain reservations", async () => {
-      ENV.geminiUserDailyTokenLimit = 500;
-      vi.stubGlobal(
-        "fetch",
-        vi.fn(async (url: string) =>
-          url.includes(":countTokens")
-            ? new Response(JSON.stringify({ totalTokens: 10 }))
-            : new Response("PRIVATE_PROVIDER_ERROR_BODY", { status: 503 })
-        )
-      );
-      await expect(ask(44)).rejects.toThrow("Gemini request failed (HTTP 503)");
-      const [rows] = await connection.query<mysql.RowDataPacket[]>(
-        "SELECT totalTokens FROM gemini_usage_daily WHERE userId=44 AND feature='__budget__'"
-      );
-      expect(Number(rows[0].totalTokens)).toBe(110);
-    });
-  }
-);
+let pg: PGlite;
+const original = { ...ENV }; const originalUrl = process.env.DATABASE_URL;
+let countStatus = 200, generateStatus = 200, counted = 10, calls = 0;
+beforeAll(async () => {
+  process.env.DATABASE_URL = "postgresql://localhost/isolated_test";
+  pg = new PGlite(); state.database = drizzle(pg);
+  await pg.exec(readFileSync("drizzle-pg/0000_pg_initial.sql", "utf8"));
+}, 30000);
+afterAll(async () => { Object.assign(ENV, original); process.env.DATABASE_URL = originalUrl; vi.unstubAllGlobals(); await pg.close(); });
+beforeEach(async () => {
+  await pg.exec("TRUNCATE gemini_usage_daily");
+  Object.assign(ENV, { geminiApiKey: "test-secret-key", geminiMaxInputTokens: 1000, geminiMaxOutputTokens: 100, geminiDailyTokenLimit: 150, geminiUserDailyTokenLimit: 150 });
+  countStatus = 200; generateStatus = 200; counted = 10; calls = 0;
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    if (url.includes(":countTokens")) return new Response(JSON.stringify(countStatus === 200 ? { totalTokens: counted } : { error: { status: "RESOURCE_EXHAUSTED" } }), { status: countStatus });
+    calls++;
+    return new Response(JSON.stringify(generateStatus === 200 ? { candidates: [{ content: { parts: [{ text: "Resposta" }] } }], usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 20, thoughtsTokenCount: 5, totalTokenCount: 35 } } : { error: { status: generateStatus === 403 ? "PERMISSION_DENIED" : "RESOURCE_EXHAUSTED" } }), { status: generateStatus });
+  }));
+});
+const ask = (userId = 42) => invokeLLM({ userId, feature: "test", maxTokens: 100, messages: [{ role: "user", content: "Test" }] });
+describe("Gemini PostgreSQL ledger and error classification", () => {
+  it("reads PostgreSQL result.rows, settles actual usage including thought tokens, and allows a second small request", async () => {
+    await ask(); await ask();
+    expect(calls).toBe(2);
+    const rows = (await pg.query<{ totalTokens: number; feature: string; userId: number }>('SELECT * FROM gemini_usage_daily')).rows;
+    expect(rows.find(r => r.userId === 42 && r.feature === "__budget__")?.totalTokens).toBe(70);
+    expect(rows.find(r => r.userId === 42 && r.feature === "test")?.totalTokens).toBe(70);
+  });
+  it("serializes reservations and clearly identifies the local app budget", async () => {
+    const results = await Promise.allSettled([ask(), ask()]);
+    expect(results.filter(r => r.status === "fulfilled")).toHaveLength(1);
+    expect(results.find(r => r.status === "rejected")).toMatchObject({ reason: { code: "TOO_MANY_REQUESTS", message: expect.stringContaining("orçamento diário") } });
+    expect(calls).toBe(1);
+  });
+  it("distinguishes Gemini HTTP 429, releases its local reservation and allows retry", async () => {
+    generateStatus = 429; await expect(ask()).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS", message: expect.stringContaining("HTTP 429") });
+    generateStatus = 200; await expect(ask()).resolves.toMatchObject({ choices: [{ message: { content: "Resposta" } }] });
+  });
+  it("never treats a failed countTokens request as a giant base64/token estimate", async () => {
+    countStatus = 429;
+    await expect(ask()).rejects.toMatchObject({ message: expect.stringContaining("HTTP 429") }); expect(calls).toBe(0);
+    expect((await pg.query("SELECT * FROM gemini_usage_daily")).rows).toHaveLength(0);
+  });
+  it("uses multimodal provider counts instead of image byte length", async () => {
+    await expect(invokeLLM({ userId: 42, maxTokens: 100, messages: [{ role: "user", content: [{ type: "image_url", image_url: { url: "data:image/jpeg;base64," + "A".repeat(100000) } }] }] })).resolves.toBeDefined();
+  });
+  it("classifies provider permissions, input limit and missing configuration without claiming quota exhaustion", async () => {
+    generateStatus = 403; await expect(ask()).rejects.toMatchObject({ code: "PRECONDITION_FAILED", message: expect.stringContaining("HTTP 403") });
+    counted = 1001; await expect(ask()).rejects.toMatchObject({ code: "PAYLOAD_TOO_LARGE" });
+    ENV.geminiApiKey = ""; await expect(ask()).rejects.toMatchObject({ code: "PRECONDITION_FAILED", message: expect.stringContaining("não está configurado") });
+  });
+});

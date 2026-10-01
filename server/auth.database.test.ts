@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
-import mysql from "mysql2/promise";
+import type { Client } from "pg";
+import { isolatedPostgres } from "./postgres-test-db";
 import dotenv from "dotenv";
 vi.setConfig({ testTimeout: 30_000 });
 
@@ -8,9 +9,9 @@ const state = vi.hoisted(() => ({
   database: undefined as unknown,
   emails: [] as { kind: string; to: string; actionUrl?: string }[],
 }));
-vi.mock("drizzle-orm/mysql2", async importOriginal => ({
+vi.mock("./db", async importOriginal => ({
   ...(await importOriginal<object>()),
-  drizzle: () => state.database,
+  getDb: async () => state.database,
 }));
 vi.mock("./auth-emails", () => ({
   sendAuthEmail: vi.fn(
@@ -33,7 +34,6 @@ import {
   markEmailVerified,
   updateUserPassword,
 } from "./db";
-import { mysqlConnectionOptions } from "./_core/mysql-connection";
 
 function browser(session?: string) {
   const cookies: string[] = [];
@@ -69,9 +69,9 @@ const hash = (token: string) =>
 // Opt in explicitly. All writes use connection-local temporary tables that
 // shadow the real tables and disappear automatically when the connection ends.
 describe.skipIf(process.env.AUTH_DATABASE_TESTS !== "1")(
-  "authentication with MySQL temporary tables",
+  "authentication with PostgreSQL temporary tables",
   () => {
-    let connection: Awaited<ReturnType<typeof mysql.createConnection>>;
+    let connection: Client;
     const email = "auth-a@example.test";
     const initialPassword = "Initial-password-91";
     const newPassword = "Changed-password-82";
@@ -83,30 +83,9 @@ describe.skipIf(process.env.AUTH_DATABASE_TESTS !== "1")(
     beforeAll(async () => {
       dotenv.config({ quiet: true });
       try {
-        connection = await mysql.createConnection({
-          ...mysqlConnectionOptions(process.env.DATABASE_URL!),
-          connectTimeout: 15_000,
-        });
-        for (const table of [
-          "users",
-          "auth_email_tokens",
-          "auth_rate_limits",
-          "body_analyses",
-        ]) {
-          const [definition] = await connection.query<mysql.RowDataPacket[]>(
-            `SHOW CREATE TABLE \`${table}\``
-          );
-          const ddl = String(definition[0]["Create Table"]).replace(
-            /^CREATE TABLE/,
-            "CREATE TEMPORARY TABLE"
-          );
-          await connection.query(ddl);
-        }
-        const { drizzle } =
-          await vi.importActual<typeof import("drizzle-orm/mysql2")>(
-            "drizzle-orm/mysql2"
-          );
-        state.database = drizzle(connection);
+        const isolated = await isolatedPostgres();
+        connection = isolated.connection;
+        state.database = isolated.db;
       } catch (error) {
         const code =
           error && typeof error === "object" && "code" in error
@@ -145,8 +124,8 @@ describe.skipIf(process.env.AUTH_DATABASE_TESTS !== "1")(
         caller.auth.login({ email, password: initialPassword })
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
       const token = emailToken("verify_email", email);
-      const [rows] = await connection.query<mysql.RowDataPacket[]>(
-        "SELECT tokenHash FROM auth_email_tokens"
+      const { rows } = await connection.query(
+        'SELECT "tokenHash" FROM auth_email_tokens'
       );
       expect(rows[0].tokenHash === hash(token)).toBe(true);
       const result = await caller.auth.confirmEmail({ token });
@@ -334,7 +313,7 @@ describe.skipIf(process.env.AUTH_DATABASE_TESTS !== "1")(
       );
       // Body analyses belonging to a different owner cannot appear in the history.
       await connection.query(
-        "INSERT INTO body_analyses (userId, analysisMonth, photoKeys, confidencePercent, analysisJson) VALUES (?, ?, ?, ?, ?)",
+        'INSERT INTO body_analyses ("userId", "analysisMonth", "photoKeys", "confidencePercent", "analysisJson") VALUES ($1, $2, $3, $4, $5)',
         [999, "2026-09", "{}", 80, JSON.stringify({ private: true })]
       );
       expect(await authenticated.progress.bodyAnalysisHistory()).toEqual([]);

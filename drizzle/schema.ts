@@ -54,8 +54,8 @@ export type InsertUser = typeof users.$inferInsert;
 export const trainingSessions = pgTable("training_sessions", {
   id: varchar("id", { length: 36 }).primaryKey(), userId: integer("userId").notNull(), activityDate: varchar("activityDate", { length: 10 }).notNull(),
   status: varchar("status", { length: 32, enum: ["in_progress", "completed"] }).default("in_progress").notNull(),
-  snapshotJson: text("snapshotJson").notNull(), note: text("note"), startedAt: timestamp("startedAt").defaultNow().notNull(), completedAt: timestamp("completedAt"),
-}, table => ({ userDate: uniqueIndex("training_sessions_user_date").on(table.userId, table.activityDate) }));
+  snapshotJson: text("snapshotJson").notNull(), note: text("note"), startedAt: timestamp("startedAt").defaultNow().notNull(), completedAt: timestamp("completedAt"), smartwatchJson: text("smartwatchJson"), summary: text("summary"),
+}, table => ({ userDate: index("training_sessions_user_date").on(table.userId, table.activityDate) }));
 export const trainingSets = pgTable("training_sets", {
   id: varchar("id", { length: 80 }).primaryKey(), sessionId: varchar("sessionId", { length: 36 }).notNull(), exerciseIndex: integer("exerciseIndex").notNull(), setIndex: integer("setIndex").notNull(),
   exerciseId: varchar("exerciseId", { length: 8 }).notNull(), reps: integer("reps"), seconds: integer("seconds"), loadKg: varchar("loadKg", { length: 12 }), note: varchar("note", { length: 500 }), confirmedAt: timestamp("confirmedAt").defaultNow().notNull(), voidedAt: timestamp("voidedAt"),
@@ -294,3 +294,8 @@ export const geminiUsageDaily = pgTable("gemini_usage_daily", {
 }));
 
 export type UserSubscription = typeof userSubscriptions.$inferSelect;
+
+export const workoutAiWeeks = pgTable("workout_ai_weeks", {
+  userId: integer("userId").notNull(), weekStart: varchar("weekStart", { length: 10 }).notNull(),
+  reservationId: varchar("reservationId", { length: 36 }).notNull(), createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({ userWeek: uniqueIndex("workout_ai_weeks_user_week").on(table.userId, table.weekStart) }));
