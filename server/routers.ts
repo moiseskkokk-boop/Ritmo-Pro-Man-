@@ -62,11 +62,11 @@ async function createLoginChallenge(ctx: Pick<TrpcContext, "req" | "res">, provi
   const token = await new SignJWT({ purpose: provider + "_login", nonce, state }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("10m").sign(getJwtSecret());
   const cookieName = provider === "google" ? GOOGLE_CHALLENGE_COOKIE : APPLE_CHALLENGE_COOKIE;
   ctx.res.cookie(cookieName, token, { ...getSessionCookieOptions(ctx.req), path: "/api/trpc", maxAge: 10 * 60 * 1000 });
-  return { nonce, state };
+  return { nonce, state, challengeToken: token };
 }
-async function consumeLoginChallenge(ctx: Pick<TrpcContext, "req" | "res">, provider: "google" | "apple") {
+async function consumeLoginChallenge(ctx: Pick<TrpcContext, "req" | "res">, provider: "google" | "apple", suppliedToken?: string) {
   const cookieName = provider === "google" ? GOOGLE_CHALLENGE_COOKIE : APPLE_CHALLENGE_COOKIE;
-  const token = requestCookie(ctx.req, cookieName);
+  const token = suppliedToken || requestCookie(ctx.req, cookieName);
   ctx.res.clearCookie(cookieName, { ...getSessionCookieOptions(ctx.req), path: "/api/trpc" });
   if (!token) throw new TRPCError({ code: "UNAUTHORIZED", message: "A validação de segurança do provedor expirou. Tente novamente." });
   try {
@@ -280,10 +280,10 @@ export const appRouter = router({
       if (!signedInUser) throw new Error("Could not load account");
       return toClientUser(signedInUser);
     }),
-    googleSignIn: publicProcedure.input(z.object({ credential: z.string().min(100).max(12000), acceptedTerms: z.boolean() })).mutation(async ({ ctx, input }) => {
+    googleSignIn: publicProcedure.input(z.object({ credential: z.string().min(100).max(12000), challengeToken: z.string().min(100).max(4096), acceptedTerms: z.boolean() })).mutation(async ({ ctx, input }) => {
       if (!ENV.googleClientId) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Login com Google ainda não está configurado." });
       if (!providerIpRateAllowed(ctx, "google_signin", 20)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos." });
-      const challenge = await consumeLoginChallenge(ctx, "google");
+      const challenge = await consumeLoginChallenge(ctx, "google", input.challengeToken);
       const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(input.credential)}`, { signal: AbortSignal.timeout(10_000) });
       if (!response.ok) throw new TRPCError({ code: "UNAUTHORIZED", message: "Não foi possível validar a conta do Google." });
       const claims = await response.json() as { aud?: string; iss?: string; sub?: string; email?: string; email_verified?: string | boolean; name?: string; exp?: string; nonce?: string };

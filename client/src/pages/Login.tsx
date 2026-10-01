@@ -26,7 +26,7 @@ export default function Login() {
   const [, setLocation] = useLocation();
   const googleButton = useRef<HTMLDivElement>(null);
   const appleChallengeRef = useRef<{ nonce: string; state: string } | null>(null);
-  const googleChallengePromiseRef = useRef<Promise<{ nonce: string; state: string }> | null>(null);
+  const googleChallengePromiseRef = useRef<Promise<{ nonce: string; state: string; challengeToken: string }> | null>(null);
   const appleChallengePromiseRef = useRef<Promise<{ nonce: string; state: string }> | null>(null);
   const acceptedTermsRef = useRef(false);
   const [mode, setMode] = useState<"login" | "register" | "forgot" | "reset">(() => new URLSearchParams(window.location.search).has("reset") || new URLSearchParams(window.location.hash.slice(1)).has("reset") ? "reset" : "login");
@@ -75,7 +75,7 @@ export default function Login() {
       if (cancelled || !googleButton.current || !window.google) return;
       window.google.accounts.id.initialize({ client_id: clientId, nonce: challenge.nonce, callback: response => {
         if (!acceptedTermsRef.current) { setProviderError("Aceite os Termos de Uso e a Política de Privacidade para continuar."); return; }
-        googleSignIn.mutate({ credential: response.credential, acceptedTerms: true });
+        googleSignIn.mutate({ credential: response.credential, challengeToken: challenge.challengeToken, acceptedTerms: true });
       } });
       googleButton.current.replaceChildren();
       window.google.accounts.id.renderButton(googleButton.current, { theme: "outline", size: "large", shape: "pill", text: "continue_with", width: 360 });

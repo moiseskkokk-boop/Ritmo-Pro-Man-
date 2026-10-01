@@ -42,14 +42,14 @@ describe("OAuth login challenge security", () => {
   it("rejects replay even when the original signed cookie is sent again", async () => {
     const page = await challenge();
     const fetch = provider(page.challenge.nonce);
-    await page.caller.auth.googleSignIn({ credential: "test-credential".repeat(10), acceptedTerms: true });
-    await expect(page.caller.auth.googleSignIn({ credential: "test-credential".repeat(10), acceptedTerms: true })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await page.caller.auth.googleSignIn({ credential: "test-credential".repeat(10), challengeToken: page.challenge.challengeToken, acceptedTerms: true });
+    await expect(page.caller.auth.googleSignIn({ credential: "test-credential".repeat(10), challengeToken: page.challenge.challengeToken, acceptedTerms: true })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     expect(fetch).toHaveBeenCalledOnce();
   });
   it("rejects mismatched provider nonce without issuing a session", async () => {
     const page = await challenge();
     provider("wrong-nonce");
-    await expect(page.caller.auth.googleSignIn({ credential: "test-credential".repeat(10), acceptedTerms: true })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(page.caller.auth.googleSignIn({ credential: "test-credential".repeat(10), challengeToken: page.challenge.challengeToken, acceptedTerms: true })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     expect(page.cookie).toHaveBeenCalledOnce(); // Only the challenge, never a session.
     expect(db.getUserByEmail).not.toHaveBeenCalled();
   });
