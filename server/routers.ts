@@ -209,6 +209,7 @@ async function removeUserBodyPhotos(userId: number) {
   }
 }
 async function requirePremium(userId: number) {
+  if (ENV.freeProAccess) return;
   const subscription = await getLatestUserSubscription(userId);
   if (!subscription || !hasPremiumAccess(subscription.status, subscription.currentPeriodEnd)) {
     throw new TRPCError({ code: "FORBIDDEN", message: "Esta funcionalidade requer uma assinatura Ritmo Pro ativa." });
@@ -305,6 +306,7 @@ export const appRouter = router({
       return { success: true as const };
     }),
     subscription: protectedProcedure.query(async ({ ctx }) => {
+      if (ENV.freeProAccess) return { status: "active" as const, premium: true, plan: { code: "ritmo_free_pro", amount: "0.00", currency: ENV.mercadoPagoCurrency.toUpperCase(), interval: "month" as const }, currentPeriodEnd: null, lastPaymentStatus: null, offer: { name: "Ritmo Pro — GRÁTIS", amount: "0.00", currency: ENV.mercadoPagoCurrency.toUpperCase(), interval: "month" as const }, freeAccess: true as const };
       const subscription = await getLatestUserSubscription(ctx.user.id);
       if (!subscription) return { status: "none" as const, premium: false, plan: null, currentPeriodEnd: null, lastPaymentStatus: null, offer: { name: "Ritmo Pro", amount: ENV.mercadoPagoPlanMonthlyPrice, currency: ENV.mercadoPagoCurrency.toUpperCase(), interval: "month" as const } };
       const status = subscription.status === "active" && subscription.currentPeriodEnd && subscription.currentPeriodEnd.getTime() <= Date.now() ? "expired" as const : subscription.status;
@@ -318,6 +320,7 @@ export const appRouter = router({
       };
     }),
     checkout: protectedProcedure.mutation(async ({ ctx }) => {
+      if (ENV.freeProAccess) return { status: "active" as const, checkoutUrl: null };
       if (!ctx.user.email) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "An account email is required to start a subscription." });
       if (!ENV.mercadoPagoAccessToken || !ENV.appPublicUrl) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Mercado Pago is not configured on the server." });
       const price = ENV.mercadoPagoPlanMonthlyPrice;

@@ -28,6 +28,7 @@ export const ENV = {
   garminAuthorizeUrl: process.env.GARMIN_AUTHORIZE_URL ?? "",
   garminTokenUrl: process.env.GARMIN_TOKEN_URL ?? "",
   garminApiBaseUrl: process.env.GARMIN_API_BASE_URL ?? "",
+  freeProAccess: (process.env.FREE_PRO_ACCESS ?? "true").toLowerCase() === "true",
   mercadoPagoAccessToken: process.env.MERCADOPAGO_ACCESS_TOKEN ?? "",
   mercadoPagoWebhookSecret: process.env.MERCADOPAGO_WEBHOOK_SECRET ?? "",
   mercadoPagoPlanMonthlyPrice: process.env.MERCADOPAGO_PLAN_MONTHLY_PRICE ?? "33.99",
