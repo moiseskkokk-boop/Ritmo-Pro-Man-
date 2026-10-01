@@ -15,9 +15,9 @@ export default function SessionSmartwatch({ sessionId, language, refresh, existi
   const [saved, setSaved] = useState(!!existing);
   const analyze = trpc.progress.analyzeSmartwatchPhoto.useMutation({ onSuccess: r => { setResult(r); setError(""); }, onError: e => setError(e.message) });
   const confirm = trpc.progress.confirmSmartwatchPhoto.useMutation({ onSuccess: () => { setSaved(true); setDataUrl(""); refresh(); }, onError: e => setError(e.message) });
-  return <div className="session-smartwatch"><h3>Foto do smartwatch — Opcional</h3><p>Leia apenas métricas visíveis. Confira e corrija antes de confirmar. A foto não é necessária para concluir o treino.</p>
+  return <div className="session-smartwatch"><h3>Foto do smartwatch — Treino e Cardio</h3><p><strong>Opcional.</strong> Envie uma foto ou screenshot (print) do smartwatch com os dados do seu treino ou cardio. Confira e corrija os dados antes de confirmar.</p>
     <label>Modalidade<select value={modality} onChange={e => { setModality(e.target.value as Modality); setSaved(false); }}>{["Esteira", "Bicicleta", "Corrida livre"].map(m => <option key={m}>{m}</option>)}</select></label>
-    <label>Foto ou screenshot<input type="file" accept="image/jpeg,image/png,image/webp" disabled={analyze.isPending || confirm.isPending} onChange={e => {
+    <label>Enviar foto ou screenshot<input type="file" accept="image/jpeg,image/png,image/webp" disabled={analyze.isPending || confirm.isPending} onChange={e => {
       const file = e.target.files?.[0]; if (!file) return;
       setResult(null); setSaved(false); setDataUrl("");
       if (file.size > 2_000_000) { setError("Use uma imagem até 2 MB."); return; }

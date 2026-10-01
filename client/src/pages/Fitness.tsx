@@ -147,6 +147,8 @@ function Training({
   const [note, setNote] = useState("");
   const [waterLiters, setWaterLiters] = useState("");
   const [cardioMinutes, setCardioMinutes] = useState("");
+  const [openExerciseLogs, setOpenExerciseLogs] = useState<Record<number, boolean>>({});
+  const [zoomImage, setZoomImage] = useState<{ src: string; alt: string } | null>(null);
   const [date, setDate] = useState(() => data.sessions.find(s => s.id === new URLSearchParams(window.location.search).get("session"))?.activityDate ?? data.today);
   const [activeId, setActiveId] = useState<string | null>(() => new URLSearchParams(window.location.search).get("session") ?? null);
   const [editing, setEditing] = useState(() => Boolean(new URLSearchParams(window.location.search).get("session")));
@@ -154,7 +156,8 @@ function Training({
   const selectedSession = trpc.fitness.session.useQuery({ sessionId: activeId ?? "" }, { enabled: !!activeId && activeId !== "new" });
   const session = activeId ? data.sessions.find(s => s.id === activeId) ?? selectedSession.data : daySessions.find(s => s.status === "in_progress");
   useEffect(() => { if (session && activeId && activeId !== "new") setDate(session.activityDate); }, [session?.id, session?.activityDate, activeId]);
-  useEffect(() => { setNote(session?.note ?? ""); setWaterLiters(session?.waterLiters ?? ""); setCardioMinutes(session?.cardioMinutes == null ? "" : String(session.cardioMinutes)); }, [session?.id, session?.note, session?.waterLiters, session?.cardioMinutes]);
+  useEffect(() => { setNote(session?.note ?? ""); setWaterLiters(session?.waterLiters ?? ""); setCardioMinutes(session?.cardioMinutes == null ? "" : String(session.cardioMinutes)); setOpenExerciseLogs({}); }, [session?.id, session?.note, session?.waterLiters, session?.cardioMinutes]);
+  useEffect(() => { if (!zoomImage) return; const close = (event: KeyboardEvent) => { if (event.key === "Escape") setZoomImage(null); }; window.addEventListener("keydown", close); return () => window.removeEventListener("keydown", close); }, [zoomImage]);
   const summarize = trpc.fitness.summarize.useMutation({ onSuccess: refresh });
   const start = trpc.fitness.start.useMutation({ onSuccess: row => { setActiveId(row.id); setEditing(row.status === "completed"); refresh(); } });
   const finish = trpc.fitness.finish.useMutation({
@@ -182,11 +185,7 @@ function Training({
   return (
     <>
       <section className={panel}>
-        <p className="fitness-kicker">
-          {c.next}: {c.suggested} {originalIds.indexOf(data.nextSuggested) + 1}
-        </p>
         <h1>{c.training}</h1>
-        <p>{c.sequenceHelp}</p>
         <label>
           {c.calendar}
           <input
@@ -267,15 +266,15 @@ function Training({
             key={`${session?.id ?? "preview"}:${index}:${e.exerciseId}`}
           >
             <div className="fitness-exercise">
-              <img
-                className={["B08","C06","C08","D01","D07","D08"].includes(e.exerciseId) ? "exercise-color-match" : undefined}
-                src={originalPrescriptions[e.exerciseId].image}
-                alt={localizeExercise(
-                  exerciseById[e.exerciseId].name,
-                  language
-                )}
-                loading="lazy"
-              />
+              <button type="button" className="exercise-image-button" aria-label={`Ampliar ${localizeExercise(exerciseById[e.exerciseId].name, language)}`} onClick={() => setZoomImage({ src: originalPrescriptions[e.exerciseId].image, alt: localizeExercise(exerciseById[e.exerciseId].name, language) })}>
+                <img
+                  className={["B08","C06","C08","D01","D07","D08"].includes(e.exerciseId) ? "exercise-color-match" : undefined}
+                  src={originalPrescriptions[e.exerciseId].image}
+                  alt={localizeExercise(exerciseById[e.exerciseId].name, language)}
+                  loading="lazy"
+                />
+                <span>Ampliar</span>
+              </button>
               <div>
                 <p className="fitness-kicker">
                   {localizeExercise(exerciseById[e.exerciseId].group, language)}
@@ -291,26 +290,30 @@ function Training({
               </div>
             </div>
             {session ? (
-              Array.from({ length: e.sets }, (_, setIndex) => (
-                <SetInput
-                  key={`${session.id}:${index}:${setIndex}`}
-                  sessionId={session.id}
-                  exerciseIndex={index}
-                  setIndex={setIndex}
-                  exerciseId={e.exerciseId}
-                  c={c}
-                  saved={session.sets.find(
-                    s => s.exerciseIndex === index && s.setIndex === setIndex
-                  )}
-                  disabled={readOnly || (session.status === "completed" && !editing)}
-                  onSaved={refresh}
-                />
-              ))
+              <>
+                <button type="button" className="session-correct optional-set-toggle" aria-expanded={!!openExerciseLogs[index]} onClick={() => setOpenExerciseLogs(current => ({ ...current, [index]: !current[index] }))}>
+                  Registrar cargas e repetições (opcional)
+                </button>
+                {openExerciseLogs[index] && Array.from({ length: e.sets }, (_, setIndex) => (
+                  <SetInput
+                    key={`${session.id}:${index}:${setIndex}`}
+                    sessionId={session.id}
+                    exerciseIndex={index}
+                    setIndex={setIndex}
+                    exerciseId={e.exerciseId}
+                    c={c}
+                    saved={session.sets.find(s => s.exerciseIndex === index && s.setIndex === setIndex)}
+                    disabled={readOnly || (session.status === "completed" && !editing)}
+                    onSaved={refresh}
+                  />
+                ))}
+              </>
             ) : (
               <p>{c.startToRecord}</p>
             )}
           </article>
         ))}
+      {zoomImage && <div className="exercise-lightbox" role="dialog" aria-modal="true" aria-label={zoomImage.alt} onClick={() => setZoomImage(null)}><button type="button" className="exercise-lightbox-close" aria-label="Fechar imagem" onClick={() => setZoomImage(null)}>×</button><img src={zoomImage.src} alt={zoomImage.alt} onClick={e => e.stopPropagation()} /></div>}
       {session?.status === "completed" && (
         <section className={panel}>
           <p className="fitness-kicker">{new Date(`${session.activityDate}T12:00:00`).toLocaleDateString(language === "en" ? "en-GB" : language === "es" ? "es-ES" : "pt-PT", { day: "2-digit", month: "long", year: "numeric" })}</p>
@@ -352,7 +355,7 @@ function Training({
           <div className="fitness-grid session-daily-metrics"><label>Quantos litros de água bebeu hoje?<input type="number" min="0" max="20" step="0.1" value={waterLiters} onChange={e => setWaterLiters(e.target.value)} /></label><label>Cardio <small>Meta: 20 minutos de esteira</small><input aria-label="Quantos minutos de cardio fez?" type="number" min="0" max="1440" value={cardioMinutes} onChange={e => setCardioMinutes(e.target.value)} placeholder="Quantos minutos de cardio fez?" /></label></div>
           <SessionSmartwatch key={session.id} sessionId={session.id} language={language} refresh={refresh} existing={session.smartwatch} />
           <button
-            disabled={finish.isPending || !session.sets.length}
+            disabled={finish.isPending}
             onClick={() =>
               finish.mutate({ sessionId: session.id, note, waterLiters: waterLiters || null, cardioMinutes: cardioMinutes === "" ? null : Number(cardioMinutes), confirmed: true })
             }
