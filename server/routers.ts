@@ -136,6 +136,22 @@ async function authIpRateAllowed(ctx: Pick<TrpcContext, "req">, scope: string, l
   const ipRateKey = createHash("sha256").update(`${scope}\0ip\0${ip}`).digest("hex");
   return consumeAuthRateLimit(ipRateKey, limit, windowMs);
 }
+const providerRateWindows = new Map<string, { startedAt: number; attempts: number }>();
+function providerIpRateAllowed(ctx: Pick<TrpcContext, "req">, scope: string, limit: number, windowMs = 15 * 60_000) {
+  const now = Date.now();
+  const ip = ctx.req.ip || ctx.req.socket?.remoteAddress || "unknown";
+  const key = createHash("sha256").update(`${scope}\0ip\0${ip}`).digest("hex");
+  const current = providerRateWindows.get(key);
+  if (!current || now - current.startedAt >= windowMs) {
+    providerRateWindows.set(key, { startedAt: now, attempts: 1 });
+  } else {
+    current.attempts += 1;
+  }
+  if (providerRateWindows.size > 10_000) {
+    providerRateWindows.forEach((value, candidate) => { if (now - value.startedAt >= windowMs) providerRateWindows.delete(candidate); });
+  }
+  return (providerRateWindows.get(key)?.attempts ?? 0) <= limit;
+}
 async function deliverEmailAction(user: User, purpose: AuthTokenPurpose, kind: "verify_email" | "email_change" | "password_reset", targetEmail?: string) {
   if (!emailDeliveryConfigured()) return false;
   const { token, tokenHash } = await mintEmailToken(user, purpose, targetEmail);
@@ -227,11 +243,11 @@ export const appRouter = router({
     sessionStatus: publicProcedure.query(opts => ({ expired: Boolean(opts.ctx.sessionExpired) })),
     providers: publicProcedure.query(() => ({ googleClientId: ENV.googleClientId || null, appleServiceId: ENV.appleServiceId || null, emailConfigured: emailDeliveryConfigured() })),
     googleChallenge: publicProcedure.mutation(async ({ ctx }) => {
-      if (!await authIpRateAllowed(ctx, "google_challenge_v3", 30)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos." });
+      if (!providerIpRateAllowed(ctx, "google_challenge", 30)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos." });
       return createLoginChallenge(ctx, "google");
     }),
     appleChallenge: publicProcedure.mutation(async ({ ctx }) => {
-      if (!await authIpRateAllowed(ctx, "apple_challenge_v2", 30)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos." });
+      if (!providerIpRateAllowed(ctx, "apple_challenge", 30)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos." });
       return createLoginChallenge(ctx, "apple");
     }),
     register: publicProcedure.input(z.object({ name: z.string().trim().min(2).max(100), email: z.string().trim().email().max(320), password: strongPassword, acceptedTerms: z.literal(true) })).mutation(async ({ ctx, input }) => {
@@ -266,7 +282,7 @@ export const appRouter = router({
     }),
     googleSignIn: publicProcedure.input(z.object({ credential: z.string().min(100).max(12000), acceptedTerms: z.boolean() })).mutation(async ({ ctx, input }) => {
       if (!ENV.googleClientId) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Login com Google ainda não está configurado." });
-      if (!await authRateAllowed(ctx, "google_signin", "provider", 20)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos." });
+      if (!providerIpRateAllowed(ctx, "google_signin", 20)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos." });
       const challenge = await consumeLoginChallenge(ctx, "google");
       const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(input.credential)}`, { signal: AbortSignal.timeout(10_000) });
       if (!response.ok) throw new TRPCError({ code: "UNAUTHORIZED", message: "Não foi possível validar a conta do Google." });
@@ -280,7 +296,7 @@ export const appRouter = router({
     }),
     appleSignIn: publicProcedure.input(z.object({ identityToken: z.string().min(100).max(12000), returnedState: z.string().min(16).max(128), name: z.string().max(100).optional(), acceptedTerms: z.boolean() })).mutation(async ({ ctx, input }) => {
       if (!ENV.appleServiceId) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Login com Apple ainda não está configurado." });
-      if (!await authRateAllowed(ctx, "apple_signin", "provider", 20)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos." });
+      if (!providerIpRateAllowed(ctx, "apple_signin", 20)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos." });
       const challenge = await consumeLoginChallenge(ctx, "apple");
       if (challenge.state !== input.returnedState) throw new TRPCError({ code: "UNAUTHORIZED", message: "A validação de segurança da Apple falhou." });
       let claims: Record<string, unknown>;
