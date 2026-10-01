@@ -873,7 +873,7 @@ export const fitnessRouter = router({
           : null;
         const response = await invokeLLM({
           userId: ctx.user.id,
-          model: "gemini-3.5-flash-lite",
+          model: "gemini-2.5-flash-lite",
           feature:
             input.mode === "nutrition" ? "nutrition_analysis" : "ai_coach",
           maxTokens: 1200,
