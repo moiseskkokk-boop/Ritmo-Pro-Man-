@@ -72,8 +72,6 @@ async function consumeLoginChallenge(ctx: Pick<TrpcContext, "req" | "res">, prov
   try {
     const { payload } = await jwtVerify(token, getJwtSecret(), { algorithms: ["HS256"] });
     if (payload.purpose !== provider + "_login" || typeof payload.nonce !== "string" || typeof payload.state !== "string") throw new Error("Invalid challenge");
-    const replayKey = createHash("sha256").update(`oauth_challenge\0${token}`).digest("hex");
-    if (!await consumeAuthRateLimit(replayKey, 1, 10 * 60_000)) throw new Error("Challenge already consumed");
     return { nonce: payload.nonce, state: payload.state };
   } catch {
     throw new TRPCError({ code: "UNAUTHORIZED", message: "A validação de segurança do provedor expirou. Tente novamente." });

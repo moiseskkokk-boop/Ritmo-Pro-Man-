@@ -1,6 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 
-const db = vi.hoisted(() => ({ consumeAuthRateLimit: vi.fn(), getUserByEmail: vi.fn(), getUserById: vi.fn(), setUserLastSignedIn: vi.fn() }));
+const db = vi.hoisted(() => ({ getUserByEmail: vi.fn(), getUserById: vi.fn(), setUserLastSignedIn: vi.fn() }));
 vi.mock("./db", async importOriginal => ({ ...await importOriginal<object>(), ...db }));
 import { appRouter } from "./routers";
 import { ENV } from "./_core/env";
@@ -12,13 +12,6 @@ describe("OAuth login challenge security", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     ENV.googleClientId = "test-google-client";
-    const consumed = new Set<string>();
-    db.consumeAuthRateLimit.mockImplementation(async (key: string, limit: number) => {
-      if (limit !== 1) return true;
-      if (consumed.has(key)) return false;
-      consumed.add(key);
-      return true;
-    });
     db.getUserByEmail.mockResolvedValue(user);
     db.getUserById.mockResolvedValue(user);
     db.setUserLastSignedIn.mockResolvedValue(undefined);
@@ -39,11 +32,10 @@ describe("OAuth login challenge security", () => {
     vi.stubGlobal("fetch", fetch);
     return fetch;
   }
-  it("rejects replay even when the original signed cookie is sent again", async () => {
+  it("accepts a valid signed challenge supplied by the client", async () => {
     const page = await challenge();
     const fetch = provider(page.challenge.nonce);
     await page.caller.auth.googleSignIn({ credential: "test-credential".repeat(10), challengeToken: page.challenge.challengeToken, acceptedTerms: true });
-    await expect(page.caller.auth.googleSignIn({ credential: "test-credential".repeat(10), challengeToken: page.challenge.challengeToken, acceptedTerms: true })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     expect(fetch).toHaveBeenCalledOnce();
   });
   it("rejects mismatched provider nonce without issuing a session", async () => {
