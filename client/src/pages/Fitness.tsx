@@ -1090,81 +1090,22 @@ function History({
     </>
   );
 }
-function Dashboard({
-  data,
-  c,
-  language,
-}: {
-  data: Overview;
-  c: Copy;
-  language: Language;
-}) {
-  const session = data.sessions.find(s => s.activityDate === data.today);
-  const lastWeight = data.measurements.find(m => m.data.weightKg !== null);
+function Dashboard({ c }: { data: Overview; c: Copy; language: Language }) {
   return (
     <>
       <section className={panel}>
-        <p className="fitness-kicker">
-          Ritmo Pro Man · {data.today} · Europe/Lisbon
-        </p>
         <h1>{c.dashboard}</h1>
-        <p>{c.sequenceHelp}</p>
       </section>
-      <div className="fitness-grid">
-        <section className={panel}>
-          <h2>{c.next}</h2>
-          <p>
-            {c.suggested} {originalIds.indexOf(data.nextSuggested) + 1}
-          </p>
-          <p>{defaultWorkoutTemplates[data.nextSuggested].focusGroup}</p>
-          <Link href="/treino">{c.start} →</Link>
-        </section>
-        <section className={panel}>
-          <h2>{c.todayTraining}</h2>
-          <p>
-            {session
-              ? `${session.snapshot.name} · ${session.sets.length} ${c.confirmedSets}`
-              : c.noTraining}
-          </p>
-          <Link href="/treino">{c.training} →</Link>
-        </section>
-        <section className={panel}>
-          <h2>{c.water}</h2>
-          <p>{session?.waterLiters ? `${session.waterLiters} L` : c.empty}</p>
-          <Link href="/treino">{c.training} →</Link>
-        </section>
-        <section className={panel}>
-          <h2>{c.cardio}</h2>
-          <p>Meta: 20 minutos de esteira</p>
-          <p>{session?.cardioMinutes == null ? c.empty : `${session.cardioMinutes} min realizados`}</p>
-          <Link href="/treino">{c.training} →</Link>
-        </section>
-        <section className={panel}>
-          <h2>{c.body}</h2>
-          <p>
-            {lastWeight
-              ? `${lastWeight.data.weightKg} kg · ${lastWeight.activityDate}`
-              : c.empty}
-          </p>
-          <Link href="/corpo">{c.progress} →</Link>
-        </section>
-        <section className={panel}>
-          <h2>AI Coach</h2>
-          <p>{c.coachHelp}</p>
-          <Link href="/coach">{c.ask} →</Link>
-        </section>
-        <section className={panel}>
-          <h2>{c.progress}</h2>
-          <p>
-            {data.trainingDates.length} {c.finishedSessions} ·{" "}
-            {data.metrics.confirmedSets} {c.confirmedSets}
-          </p>
-          <Link href="/historico">{c.exerciseProgress} →</Link>
-        </section>
+      <div className="fitness-grid dashboard-primary-grid">
+        <section className={panel}><h2>{c.training}</h2><Link href="/treino">{c.training} →</Link></section>
+        <section className={panel}><h2>AI Coach</h2><p>{c.coachHelp}</p><Link href="/coach">{c.ask} →</Link></section>
+        <section className={panel}><h2>{c.progress}</h2><Link href="/historico">{c.progress} →</Link></section>
+        <section className={panel}><h2>{c.profile}</h2><Link href="/perfil">{c.profile} →</Link></section>
       </div>
     </>
   );
 }
+
 export default function Fitness({
   view = "training",
 }: {

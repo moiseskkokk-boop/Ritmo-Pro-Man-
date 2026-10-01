@@ -94,17 +94,17 @@ describe("fitness on isolated PostgreSQL (PGlite)", () => {
     await a().progress.confirmSmartwatchPhoto({ sessionId: first.id, modality: "Bicicleta", dataUrl: photo, result: { ...metrics, averageHeartRate: 115 } });
     const rows = (await a().fitness.overview()).sessions;
     const saved = rows.find(s => s.id === first.id)!;
-    expect(saved.smartwatch).toMatchObject({ modality: "Bicicleta", metrics: { averageHeartRate: 115, distanceKm: null } });
-    expect(saved.smartwatch?.photoKey).toMatch(/^fitness\/42\//);
-    await expect(a().fitness.photo({ key: saved.smartwatch!.photoKey })).resolves.toMatchObject({ url: expect.stringContaining(saved.smartwatch!.photoKey) });
+    expect(saved.smartwatch).toMatchObject({ cardio: { modality: "Bicicleta", metrics: { averageHeartRate: 115, distanceKm: null } }, workout: null });
+    expect(saved.smartwatch?.cardio?.photoKey).toMatch(/^fitness\/42\//);
+    await expect(a().fitness.photo({ key: saved.smartwatch!.cardio!.photoKey })).resolves.toMatchObject({ url: expect.stringContaining(saved.smartwatch!.cardio!.photoKey) });
     expect(saved.smartwatchJson).not.toContain("base64");
-    await expect(a().fitness.photo({ key: saved.smartwatch!.photoKey })).resolves.toHaveProperty("url");
-    await expect(b().fitness.photo({ key: saved.smartwatch!.photoKey })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(a().fitness.photo({ key: saved.smartwatch!.cardio!.photoKey })).resolves.toHaveProperty("url");
+    await expect(b().fitness.photo({ key: saved.smartwatch!.cardio!.photoKey })).rejects.toMatchObject({ code: "FORBIDDEN" });
     state.put.mockClear();
-    await a().progress.confirmSmartwatchPhoto({ sessionId: first.id, modality: "Corrida livre", photoKey: saved.smartwatch!.photoKey, result: { ...metrics, averageHeartRate: 110 } });
+    await a().progress.confirmSmartwatchPhoto({ sessionId: first.id, modality: "Corrida livre", photoKey: saved.smartwatch!.cardio!.photoKey, result: { ...metrics, averageHeartRate: 110 } });
     expect(state.put).not.toHaveBeenCalled();
-    expect((await a().fitness.overview()).sessions.find(s => s.id === first.id)?.smartwatch).toMatchObject({ modality: "Corrida livre", metrics: { averageHeartRate: 110 } });
-    await expect(a().progress.confirmSmartwatchPhoto({ sessionId: second.id, modality: "Esteira", photoKey: saved.smartwatch!.photoKey, result: metrics })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect((await a().fitness.overview()).sessions.find(s => s.id === first.id)?.smartwatch).toMatchObject({ cardio: { modality: "Corrida livre", metrics: { averageHeartRate: 110 } } });
+    await expect(a().progress.confirmSmartwatchPhoto({ sessionId: second.id, modality: "Esteira", photoKey: saved.smartwatch!.cardio!.photoKey, result: metrics })).rejects.toMatchObject({ code: "FORBIDDEN" });
     expect(rows.find(s => s.id === second.id)?.smartwatch).toBeNull();
     await expect(b().progress.confirmSmartwatchPhoto({ sessionId: first.id, modality: "Esteira", dataUrl: photo, result: metrics })).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
@@ -146,7 +146,7 @@ describe("AI workout weekly limit", () => {
     await a().workouts.generateWithAI({ objective: "Força", focusGroup: "Peito", durationMinutes: 45, availabilityDays: 7, language: "pt" });
     const payload = JSON.parse(state.llm.mock.calls[0][0].messages[1].content);
     expect(payload.data.recentTrainingSessions[0].sets[0].reps).toBe(14);
-    expect(payload.data.recentTrainingSessions[0].smartwatch).toMatchObject({ modality: "Corrida livre", metrics: { averageHeartRate: 120 } });
+    expect(payload.data.recentTrainingSessions[0].smartwatch).toMatchObject({ cardio: { modality: "Corrida livre", metrics: { averageHeartRate: 120 } }, workout: null });
     expect(JSON.stringify(payload.data.recentTrainingSessions)).not.toContain("photoKey");
   });
   it("base sessions and manual/customized plans do not consume quota; server blocks the second generation even without saving a draft", async () => {

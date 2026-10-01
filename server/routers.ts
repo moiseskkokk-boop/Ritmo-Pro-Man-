@@ -558,7 +558,8 @@ export const appRouter = router({
     }),
     analyzeSmartwatchPhoto: protectedProcedure.input(z.object({
       sessionId: z.string().uuid(),
-      modality: z.enum(["Esteira", "Bicicleta", "Corrida livre"]),
+      kind: z.enum(["workout", "cardio"]).default("cardio"),
+      modality: z.enum(["Treino", "Esteira", "Bicicleta", "Corrida livre"]),
       dataUrl: z.string().regex(/^data:image\/(?:jpeg|png|webp);base64,/).max(3_000_000),
       language: z.enum(["pt", "en", "es"]),
     })).mutation(async ({ ctx, input }) => {
@@ -577,7 +578,8 @@ export const appRouter = router({
     }),
     confirmSmartwatchPhoto: protectedProcedure.input(z.object({
       sessionId: z.string().uuid(),
-      modality: z.enum(["Esteira", "Bicicleta", "Corrida livre"]),
+      kind: z.enum(["workout", "cardio"]).default("cardio"),
+      modality: z.enum(["Treino", "Esteira", "Bicicleta", "Corrida livre"]),
       dataUrl: z.string().regex(/^data:image\/(?:jpeg|png|webp);base64,/).max(3_000_000).optional(),
       photoKey: z.string().max(255).optional(),
       result: z.object({ activityDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(), activityType: z.string().max(100).nullable(), durationMinutes: z.number().int().min(0).max(100000).nullable(), activeCaloriesKcal: z.number().int().min(0).max(1000000).nullable(), totalCaloriesKcal: z.number().int().min(0).max(1000000).nullable(), averageHeartRate: z.number().int().min(0).max(300).nullable(), maxHeartRate: z.number().int().min(0).max(300).nullable(), distanceKm: z.number().min(0).max(100000).nullable(), steps: z.number().int().min(0).max(500000).nullable(), pace: z.string().max(80).nullable(), speedKmh: z.number().min(0).max(500).nullable(), heartRateZones: z.array(z.string().max(120)).max(8), otherMetrics: z.array(z.string().max(160)).max(8), confidence: z.enum(["low", "medium", "high"]) }),
@@ -599,9 +601,16 @@ export const appRouter = router({
           const [current] = await tx.select().from(trainingSessions).where(and(eq(trainingSessions.id, input.sessionId), eq(trainingSessions.userId, ctx.user.id))).for("update");
           if (!current) throw new TRPCError({ code: "NOT_FOUND", message: "Sessão não encontrada." });
           if (current.status !== "completed") assertToday(current.activityDate);
-          if (input.photoKey && (!current.smartwatchJson || JSON.parse(current.smartwatchJson).photoKey !== input.photoKey)) throw new TRPCError({ code: "FORBIDDEN", message: "A foto não pertence a esta sessão." });
+          const previous = current.smartwatchJson ? JSON.parse(current.smartwatchJson) : null;
+          const legacy = previous?.photoKey ? previous : null;
+          const existingWorkout = previous?.workout ?? null;
+          const existingCardio = previous?.cardio ?? legacy;
+          const selected = input.kind === "workout" ? existingWorkout : existingCardio;
+          if (input.photoKey && selected?.photoKey !== input.photoKey) throw new TRPCError({ code: "FORBIDDEN", message: "A foto não pertence a este registro da sessão." });
+          const record = { photoKey, modality: input.kind === "workout" ? "Treino" : input.modality, metrics: input.result, confirmedByUser: true };
+          const nextSmartwatch = { workout: input.kind === "workout" ? record : existingWorkout, cardio: input.kind === "cardio" ? record : existingCardio };
           await tx.insert(fitnessRevisions).values({ userId: ctx.user.id, entityId: current.id, kind: "session_smartwatch", previousJson: JSON.stringify(current) });
-          await tx.update(trainingSessions).set({ smartwatchJson: JSON.stringify({ photoKey, modality: input.modality, metrics: input.result, confirmedByUser: true }), summary: null }).where(eq(trainingSessions.id, current.id));
+          await tx.update(trainingSessions).set({ smartwatchJson: JSON.stringify(nextSmartwatch), summary: null }).where(eq(trainingSessions.id, current.id));
         });
       } catch (error) { if (uploaded) await storageRemove(uploaded.key); throw error; }
       return { success: true as const };

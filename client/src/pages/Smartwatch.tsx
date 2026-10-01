@@ -4,31 +4,18 @@ import type { AppRouter } from "../../../server/routers";
 import { trpc } from "@/lib/trpc";
 
 type Result = inferRouterOutputs<AppRouter>["progress"]["analyzeSmartwatchPhoto"];
-type Modality = "Esteira" | "Bicicleta" | "Corrida livre";
-export const smartwatchMetricLabels: Record<string, string> = { activityDate: "Data visível", activityType: "Atividade visível", durationMinutes: "Duração (min)", activeCaloriesKcal: "Calorias ativas (kcal)", totalCaloriesKcal: "Calorias totais (kcal)", averageHeartRate: "FC média (bpm)", maxHeartRate: "FC máxima (bpm)", distanceKm: "Distância (km)", steps: "Passos", pace: "Ritmo", speedKmh: "Velocidade (km/h)", heartRateZones: "Zonas cardíacas (separadas por ;)", otherMetrics: "Outros dados (separados por ;)" };
-const numeric = new Set(["durationMinutes", "activeCaloriesKcal", "totalCaloriesKcal", "averageHeartRate", "maxHeartRate", "distanceKm", "steps", "speedKmh"]);
-export default function SessionSmartwatch({ sessionId, language, refresh, existing }: { sessionId: string; language: "pt" | "en" | "es"; refresh: () => void; existing?: { photoKey: string; modality: string; metrics: Record<string, unknown> } | null }) {
-  const [result, setResult] = useState<Result | null>(() => existing ? existing.metrics as Result : null);
-  const [dataUrl, setDataUrl] = useState("");
-  const [modality, setModality] = useState<Modality>(() => existing?.modality as Modality || "Esteira");
-  const [error, setError] = useState("");
-  const [saved, setSaved] = useState(!!existing);
-  const analyze = trpc.progress.analyzeSmartwatchPhoto.useMutation({ onSuccess: r => { setResult(r); setError(""); }, onError: e => setError(e.message) });
-  const confirm = trpc.progress.confirmSmartwatchPhoto.useMutation({ onSuccess: () => { setSaved(true); setDataUrl(""); refresh(); }, onError: e => setError(e.message) });
-  return <div className="session-smartwatch"><h3>Foto do smartwatch — Treino e Cardio</h3><p><strong>Opcional.</strong> Envie uma foto ou screenshot (print) do smartwatch com os dados do seu treino ou cardio. Confira e corrija os dados antes de confirmar.</p>
-    <label>Modalidade<select value={modality} onChange={e => { setModality(e.target.value as Modality); setSaved(false); }}>{["Esteira", "Bicicleta", "Corrida livre"].map(m => <option key={m}>{m}</option>)}</select></label>
-    <label>Enviar foto ou screenshot<input type="file" accept="image/jpeg,image/png,image/webp" disabled={analyze.isPending || confirm.isPending} onChange={e => {
-      const file = e.target.files?.[0]; if (!file) return;
-      setResult(null); setSaved(false); setDataUrl("");
-      if (file.size > 2_000_000) { setError("Use uma imagem até 2 MB."); return; }
-      const reader = new FileReader(); reader.onload = () => { const url = String(reader.result); setDataUrl(url); analyze.mutate({ sessionId, modality, dataUrl: url, language }); }; reader.readAsDataURL(file);
-    }} /></label>
-    {analyze.isPending && <p role="status">Lendo imagem…</p>}
-    {result && !saved && <><p>Valores ausentes ficam em branco; não estime.</p><div className="fitness-grid">{Object.entries(smartwatchMetricLabels).map(([key, label]) => {
-      const value = result[key as keyof Result]; const array = Array.isArray(value);
-      return <label key={key}>{label}<input type={numeric.has(key) ? "number" : "text"} min={numeric.has(key) ? 0 : undefined} step="any" value={array ? value.join("; ") : value ?? ""} onChange={e => { const raw = e.target.value; setResult({ ...result, [key]: array ? raw.split(";").map(x => x.trim()).filter(Boolean) : numeric.has(key) ? raw === "" ? null : Number(raw) : raw || null }); }} /></label>;
-    })}</div><button disabled={confirm.isPending || (!dataUrl && !existing?.photoKey)} onClick={() => confirm.mutate({ sessionId, modality, ...(dataUrl ? { dataUrl } : { photoKey: existing!.photoKey }), result })}>Confirmar e salvar dados desta sessão</button></>}
-    {saved && <><p role="status">Foto e métricas confirmadas salvas nesta sessão.</p><button type="button" className="session-correct" onClick={() => setSaved(false)}>Corrigir dados do smartwatch</button></>}
-    {error && <p role="alert">{error}</p>}
-  </div>;
+type CardioModality = "Esteira" | "Bicicleta" | "Corrida livre";
+type RecordData = { photoKey: string; modality: string; metrics: Record<string, unknown> };
+type Existing = RecordData | { workout?: RecordData | null; cardio?: RecordData | null } | null;
+export const smartwatchMetricLabels: Record<string,string> = { activityDate:"Data visível",activityType:"Atividade visível",durationMinutes:"Duração (min)",activeCaloriesKcal:"Calorias ativas (kcal)",totalCaloriesKcal:"Calorias totais (kcal)",averageHeartRate:"FC média (bpm)",maxHeartRate:"FC máxima (bpm)",distanceKm:"Distância (km)",steps:"Passos",pace:"Ritmo",speedKmh:"Velocidade (km/h)",heartRateZones:"Zonas cardíacas (separadas por ;)",otherMetrics:"Outros dados (separados por ;)" };
+const numeric=new Set(["durationMinutes","activeCaloriesKcal","totalCaloriesKcal","averageHeartRate","maxHeartRate","distanceKm","steps","speedKmh"]);
+function splitExisting(existing: Existing){ if(!existing) return {workout:null,cardio:null}; if("photoKey" in existing) return {workout:null,cardio:existing}; return {workout:existing.workout??null,cardio:existing.cardio??null}; }
+function SmartwatchUpload({sessionId,language,refresh,kind,existing}:{sessionId:string;language:"pt"|"en"|"es";refresh:()=>void;kind:"workout"|"cardio";existing:RecordData|null}){
+ const [result,setResult]=useState<Result|null>(()=>existing?existing.metrics as Result:null); const [dataUrl,setDataUrl]=useState(""); const [modality,setModality]=useState<CardioModality>(()=>(existing?.modality as CardioModality)||"Esteira"); const [error,setError]=useState(""); const [saved,setSaved]=useState(!!existing);
+ const analyze=trpc.progress.analyzeSmartwatchPhoto.useMutation({onSuccess:r=>{setResult(r);setError("")},onError:e=>setError(e.message)}); const confirm=trpc.progress.confirmSmartwatchPhoto.useMutation({onSuccess:()=>{setSaved(true);setDataUrl("");refresh()},onError:e=>setError(e.message)}); const actualModality=kind==="workout"?"Treino":modality;
+ return <div className="smartwatch-upload"><h4>{kind==="workout"?"Foto do smartwatch do treino":"Foto do smartwatch do cardio — Opcional"}</h4>{kind==="workout"?<p>Modalidade: <strong>Treino</strong></p>:<label>Modalidade<select value={modality} onChange={e=>{setModality(e.target.value as CardioModality);setSaved(false)}}>{["Esteira","Bicicleta","Corrida livre"].map(m=><option key={m}>{m}</option>)}</select></label>}
+ <label>Enviar foto ou screenshot (print)<input type="file" accept="image/jpeg,image/png,image/webp" disabled={analyze.isPending||confirm.isPending} onChange={e=>{const file=e.target.files?.[0];if(!file)return;setResult(null);setSaved(false);setDataUrl("");if(file.size>2_000_000){setError("Use uma imagem até 2 MB.");return}const reader=new FileReader();reader.onload=()=>{const url=String(reader.result);setDataUrl(url);analyze.mutate({sessionId,kind,modality:actualModality,dataUrl:url,language})};reader.readAsDataURL(file)}}/></label>
+ {analyze.isPending&&<p role="status">Lendo imagem…</p>}{result&&!saved&&<><p>Valores ausentes ficam em branco; não estime.</p><div className="fitness-grid">{Object.entries(smartwatchMetricLabels).map(([key,label])=>{const value=result[key as keyof Result];const array=Array.isArray(value);return <label key={key}>{label}<input type={numeric.has(key)?"number":"text"} min={numeric.has(key)?0:undefined} step="any" value={array?value.join("; "):value??""} onChange={e=>{const raw=e.target.value;setResult({...result,[key]:array?raw.split(";").map(x=>x.trim()).filter(Boolean):numeric.has(key)?raw===""?null:Number(raw):raw||null})}}/></label>})}</div><button disabled={confirm.isPending||(!dataUrl&&!existing?.photoKey)} onClick={()=>confirm.mutate({sessionId,kind,modality:actualModality,...(dataUrl?{dataUrl}:{photoKey:existing!.photoKey}),result})}>Confirmar e salvar</button></>}
+ {saved&&<><p role="status">Foto e métricas confirmadas.</p><button type="button" className="session-correct" onClick={()=>setSaved(false)}>Corrigir dados</button></>}{error&&<p role="alert">{error}</p>}</div>
 }
+export default function SessionSmartwatch({sessionId,language,refresh,existing}:{sessionId:string;language:"pt"|"en"|"es";refresh:()=>void;existing?:Existing}){const records=splitExisting(existing??null);return <div className="session-smartwatch"><h3>Smartwatch — Treino e Cardio</h3><p>Envios opcionais e separados. Uma foto nunca substitui a outra.</p><SmartwatchUpload sessionId={sessionId} language={language} refresh={refresh} kind="workout" existing={records.workout}/><SmartwatchUpload sessionId={sessionId} language={language} refresh={refresh} kind="cardio" existing={records.cardio}/></div>}

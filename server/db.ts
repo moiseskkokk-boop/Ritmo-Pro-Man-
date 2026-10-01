@@ -671,7 +671,7 @@ export async function getRecentTrainingContext(userId: number, from: string, to:
   const sets = await db.select().from(trainingSets).where(and(inArray(trainingSets.sessionId, sessions.map(s => s.id)), isNull(trainingSets.voidedAt))).orderBy(trainingSets.id);
   return sessions.map(session => {
     const smartwatch = session.smartwatchJson ? JSON.parse(session.smartwatchJson) : null;
-    return { date: session.activityDate, status: session.status, workout: JSON.parse(session.snapshotJson), sets: sets.filter(s => s.sessionId === session.id).slice(0, 12).map(s => ({ exerciseId: s.exerciseId, reps: s.reps, seconds: s.seconds, loadKg: s.loadKg, note: s.note })), note: session.note, smartwatch: smartwatch ? { modality: smartwatch.modality, metrics: smartwatch.metrics } : null };
+    return { date: session.activityDate, status: session.status, workout: JSON.parse(session.snapshotJson), sets: sets.filter(s => s.sessionId === session.id).slice(0, 12).map(s => ({ exerciseId: s.exerciseId, reps: s.reps, seconds: s.seconds, loadKg: s.loadKg, note: s.note })), note: session.note, smartwatch: smartwatch ? (smartwatch.photoKey ? { cardio: { modality: smartwatch.modality, metrics: smartwatch.metrics } } : { workout: smartwatch.workout ? { modality: smartwatch.workout.modality, metrics: smartwatch.workout.metrics } : null, cardio: smartwatch.cardio ? { modality: smartwatch.cardio.modality, metrics: smartwatch.cardio.metrics } : null }) : null };
   });
 }
 
