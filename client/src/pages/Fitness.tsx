@@ -147,7 +147,7 @@ function Training({
   const [note, setNote] = useState("");
   const [waterLiters, setWaterLiters] = useState("");
   const [cardioMinutes, setCardioMinutes] = useState("");
-  const [openExerciseLogs, setOpenExerciseLogs] = useState<Record<number, boolean>>({});
+  const [exerciseDone, setExerciseDone] = useState<Record<number, boolean>>({});
   const [zoomImage, setZoomImage] = useState<{ src: string; alt: string } | null>(null);
   const [date, setDate] = useState(() => data.sessions.find(s => s.id === new URLSearchParams(window.location.search).get("session"))?.activityDate ?? data.today);
   const [activeId, setActiveId] = useState<string | null>(() => new URLSearchParams(window.location.search).get("session") ?? null);
@@ -156,7 +156,7 @@ function Training({
   const selectedSession = trpc.fitness.session.useQuery({ sessionId: activeId ?? "" }, { enabled: !!activeId && activeId !== "new" });
   const session = activeId ? data.sessions.find(s => s.id === activeId) ?? selectedSession.data : daySessions.find(s => s.status === "in_progress");
   useEffect(() => { if (session && activeId && activeId !== "new") setDate(session.activityDate); }, [session?.id, session?.activityDate, activeId]);
-  useEffect(() => { setNote(session?.note ?? ""); setWaterLiters(session?.waterLiters ?? ""); setCardioMinutes(session?.cardioMinutes == null ? "" : String(session.cardioMinutes)); setOpenExerciseLogs({}); }, [session?.id, session?.note, session?.waterLiters, session?.cardioMinutes]);
+  useEffect(() => { setNote(session?.note ?? ""); setWaterLiters(session?.waterLiters ?? ""); setCardioMinutes(session?.cardioMinutes == null ? "" : String(session.cardioMinutes)); setExerciseDone({}); }, [session?.id, session?.note, session?.waterLiters, session?.cardioMinutes]);
   useEffect(() => { if (!zoomImage) return; const close = (event: KeyboardEvent) => { if (event.key === "Escape") setZoomImage(null); }; window.addEventListener("keydown", close); return () => window.removeEventListener("keydown", close); }, [zoomImage]);
   const summarize = trpc.fitness.summarize.useMutation({ onSuccess: refresh });
   const start = trpc.fitness.start.useMutation({ onSuccess: row => { setActiveId(row.id); setEditing(row.status === "completed"); refresh(); } });
@@ -177,6 +177,7 @@ function Training({
       );
   const plan = session?.snapshot ?? preview;
   const total = plan.exercises.reduce((sum, e) => sum + e.sets, 0);
+  const allExercisesDone = Boolean(session) && plan.exercises.length > 0 && plan.exercises.every((_, index) => exerciseDone[index]);
   const readOnly = date !== data.today && session?.status !== "completed";
   if (activeId && activeId !== "new" && !session) return <section className={panel}>
     <p role={selectedSession.isLoading ? "status" : "alert"}>{selectedSession.isLoading ? c.loading : selectedSession.error?.message ?? "Sessão não encontrada."}</p>
@@ -290,24 +291,10 @@ function Training({
               </div>
             </div>
             {session ? (
-              <>
-                <button type="button" className="session-correct optional-set-toggle" aria-expanded={!!openExerciseLogs[index]} onClick={() => setOpenExerciseLogs(current => ({ ...current, [index]: !current[index] }))}>
-                  Registrar cargas e repetições (opcional)
-                </button>
-                {openExerciseLogs[index] && Array.from({ length: e.sets }, (_, setIndex) => (
-                  <SetInput
-                    key={`${session.id}:${index}:${setIndex}`}
-                    sessionId={session.id}
-                    exerciseIndex={index}
-                    setIndex={setIndex}
-                    exerciseId={e.exerciseId}
-                    c={c}
-                    saved={session.sets.find(s => s.exerciseIndex === index && s.setIndex === setIndex)}
-                    disabled={readOnly || (session.status === "completed" && !editing)}
-                    onSaved={refresh}
-                  />
-                ))}
-              </>
+              <button type="button" className={`exercise-done-toggle ${exerciseDone[index] ? "is-done" : ""}`} aria-pressed={!!exerciseDone[index]} onClick={() => setExerciseDone(current => ({ ...current, [index]: !current[index] }))}>
+                <span className="exercise-done-circle">{exerciseDone[index] ? "✓" : ""}</span>
+                {exerciseDone[index] ? "Feito" : "Marcar exercício"}
+              </button>
             ) : (
               <p>{c.startToRecord}</p>
             )}
@@ -355,13 +342,14 @@ function Training({
           <div className="fitness-grid session-daily-metrics"><label>Quantos litros de água bebeu hoje?<input type="number" min="0" max="20" step="0.1" value={waterLiters} onChange={e => setWaterLiters(e.target.value)} /></label><label>Cardio <small>Meta: 20 minutos de esteira</small><input aria-label="Quantos minutos de cardio fez?" type="number" min="0" max="1440" value={cardioMinutes} onChange={e => setCardioMinutes(e.target.value)} placeholder="Quantos minutos de cardio fez?" /></label></div>
           <SessionSmartwatch key={session.id} sessionId={session.id} language={language} refresh={refresh} existing={session.smartwatch} />
           <button
-            disabled={finish.isPending}
+            disabled={finish.isPending || (session.status !== "completed" && !allExercisesDone)}
             onClick={() =>
               finish.mutate({ sessionId: session.id, note, waterLiters: waterLiters || null, cardioMinutes: cardioMinutes === "" ? null : Number(cardioMinutes), confirmed: true })
             }
           >
             {session.status === "completed" ? "Salvar correções" : c.finish}
           </button>
+          {session.status !== "completed" && !allExercisesDone && <p className="save-notice">Marque todos os exercícios como feitos para liberar o salvamento.</p>}
           {finish.error && <p role="alert">{finish.error.message}</p>}
         </section>
       )}

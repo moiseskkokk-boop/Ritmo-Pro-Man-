@@ -446,3 +446,5 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible { 
 
 /* Uniform exercise demonstration imagery: Man + Woman */
 .exercise-visual img, .modal-art img { filter: grayscale(1) contrast(1.06) !important; }
+
+.exercise-done-toggle{display:flex;align-items:center;gap:.6rem;margin-top:1rem;border:1px solid #d1d5db;border-radius:999px;padding:.55rem .85rem;background:#fff;font-weight:700}.exercise-done-toggle.is-done{border-color:#65a30d;background:#f7fee7}.exercise-done-circle{display:grid;place-items:center;width:1.45rem;height:1.45rem;border:2px solid currentColor;border-radius:50%;font-size:.85rem}.save-notice{font-size:.85rem;opacity:.72}
