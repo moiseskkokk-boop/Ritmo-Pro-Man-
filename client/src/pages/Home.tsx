@@ -1840,6 +1840,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
     workout => workout.id === selectedWorkoutId
   );
   const selected = selectedWorkout ?? workouts[0];
+  const selectedAllComplete = Boolean(selectedWorkout && selected.exercises.length) && selected.exercises.every((_, index) => Boolean(completed[`${selected.id}-${index}`]));
   const privacy = accountCopy[language];
   const currentRecommendation = recommendDay5(
     assessmentQuery.data
@@ -1895,7 +1896,6 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
     if (selectedDate !== todayIso) return;
     const next = { ...completed, [key]: !completed[key] };
     setCompleted(next);
-    persistDaily(next);
   };
   const toggleTheme = () =>
     setIsDark(current => {
@@ -2567,11 +2567,12 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
                     </div>
                     <button
                       className="dark-btn"
-                      disabled={!user || !isTodaySelectable || saveDailyMutation.isPending}
+                      disabled={!user || !isTodaySelectable || !selectedAllComplete || saveDailyMutation.isPending}
                       onClick={() => persistDaily()}
                     >
-                      {a.saveMetrics}
+                      {saveDailyMutation.isPending ? "Salvando…" : "Salvar treino"}
                     </button>
+                    {selectedWorkout && !selectedAllComplete && <small className="save-notice">Confirme todos os exercícios nas bolinhas para liberar o salvamento do treino.</small>}
                     {metricsNotice && (
                       <span
                         className="save-notice"
