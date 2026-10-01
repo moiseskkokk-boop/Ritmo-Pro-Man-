@@ -191,7 +191,7 @@ export async function fitnessOverview(userId: number) {
       and(
         eq(trainingSessions.userId, userId),
         eq(trainingSessions.status, "completed"),
-        sql`JSON_UNQUOTE(JSON_EXTRACT(${trainingSessions.snapshotJson}, '$.originalId')) IN ('A','B','C','D')`
+        sql`${trainingSessions.snapshotJson}->>'originalId' IN ('A','B','C','D')`
       )
     )
     .orderBy(desc(trainingSessions.activityDate))
