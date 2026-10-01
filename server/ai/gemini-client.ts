@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
-import { ENV } from "./env";
+import { ENV } from "../_core/env";
 
 export type GeminiPart = { text: string } | { inlineData: { mimeType: string; data: string } };
 export type GeminiMessage = { role: "user" | "model"; parts: GeminiPart[] };
