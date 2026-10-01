@@ -21,8 +21,13 @@ import { bodyAnalysisResultSchema, decodeBodyImage, parseBodyAnalysisResponse } 
 import { beginWearableOAuth, disconnectWearableAccount, syncWearable } from "./wearables";
 import type { User } from "../drizzle/schema";
 import { hasPremiumAccess, isMercadoPagoCheckoutUrl, makeUserExternalReference, MercadoPagoClient } from "./mercadopago";
-import { exerciseById, exerciseIds, catalogFor, assertExperienceExercises } from "@shared/workouts";
+import { exerciseById, exerciseIds, catalogFor, assertExperienceExercises as assertCatalogExperience, type Experience } from "@shared/workouts";
 import { sendAuthEmail } from "./auth-emails";
+
+function assertExperienceExercises(exercises: { exerciseId: string }[], experience: Experience) {
+  try { assertCatalogExperience(exercises, experience); }
+  catch { throw new TRPCError({ code: "BAD_REQUEST", message: "Exercício não pertence a esta experiência." }); }
+}
 
 async function toClientUser(user: User) {
   let profileImageUrl: string | null = null;
@@ -511,7 +516,7 @@ export const appRouter = router({
         messages: [
           { role: "system", content: "Você é um assistente de acompanhamento de composição corporal e performance. Analise conjuntamente as quatro imagens identificadas como front (frente), left (lado esquerdo), back (costas) e right (lado direito), além dos dados JSON fornecidos. Compare apenas evidências visíveis e não misture as perspectivas. Não invente peso, medidas, percentual corporal, hábitos ou resultados. O percentual de gordura só pode ser um valor inteiro aproximado de 3 a 70 quando houver evidência visual suficiente; caso contrário retorne null e reduza a confiança. O confidencePercent expressa confiança aproximada da estimativa visual, não probabilidade clínica. Descreva observações visíveis sem inferir diagnósticos. Não identifique nem diagnostique lesões, alergias, deficiências ou condições médicas. Alinhe observações e recomendações ao objetivo/treinos/dados disponíveis; se não houver dados, diga que não há dados suficientes. Alimentação e hidratação devem ser descritas apenas a partir dos registros fornecidos, sem completar lacunas. Responda no idioma informado (pt, en, es), apenas JSON válido com: bodyFatEstimatePercent (integer ou null), confidencePercent (integer 0-100), observations (string), performanceAlignment (string), trainingConsiderations (array de até 5 strings), nutritionHydrationReview (string), dataLimitations (array de strings)." },
           { role: "user", content: [
-            { type: "text", text: JSON.stringify({ language: input.language, objectiveAndAssessment: assessment ? { objective: assessment.objective, heightCm: assessment.heightCm, benchPressLevel: assessment.benchPressLevel, squatLevel: assessment.squatLevel, cardio: assessment.cardio, sleep: assessment.sleep, recovery: assessment.recovery, fatigue: assessment.fatigue } : null, currentWeek: weekly, dailyRecords: nutritionHydration, previousMonthlyAnalysis: previousAnalysis }) },
+            { type: "text", text: JSON.stringify({ experience: ctx.user.experience ?? "man", language: input.language, objectiveAndAssessment: assessment ? { objective: assessment.objective, heightCm: assessment.heightCm, benchPressLevel: assessment.benchPressLevel, squatLevel: assessment.squatLevel, cardio: assessment.cardio, sleep: assessment.sleep, recovery: assessment.recovery, fatigue: assessment.fatigue } : null, currentWeek: weekly, dailyRecords: nutritionHydration, previousMonthlyAnalysis: previousAnalysis }) },
             ...imageContent,
           ] },
         ],

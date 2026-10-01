@@ -193,7 +193,7 @@ function Training({
         <section className={panel}>
           <button
             disabled={finish.isPending || mark.isPending || !allExercisesDone}
-            onClick={() => finish.mutate({ sessionId: session.id, note: null, waterLiters: null, cardioMinutes: null, confirmed: true })}
+            onClick={() => finish.mutate({ sessionId: session.id, note: "", waterLiters: null, cardioMinutes: null, confirmed: true })}
           >
             {finish.isPending ? "Salvando…" : c.finish}
           </button>

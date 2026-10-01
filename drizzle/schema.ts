@@ -1,4 +1,5 @@
-import { bigint, bigserial, index, integer, pgTable, serial, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { check, bigint, bigserial, index, integer, pgTable, serial, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
 
 /**
  * Core user table backing auth flow.
@@ -58,7 +59,7 @@ export const trainingSessions = pgTable("training_sessions", {
   id: varchar("id", { length: 36 }).primaryKey(), userId: integer("userId").notNull(), activityDate: varchar("activityDate", { length: 10 }).notNull(),
   status: varchar("status", { length: 32, enum: ["in_progress", "completed"] }).default("in_progress").notNull(),
   snapshotJson: text("snapshotJson").notNull(), note: text("note"), startedAt: timestamp("startedAt").defaultNow().notNull(), completedAt: timestamp("completedAt"), smartwatchJson: text("smartwatchJson"), summary: text("summary"), cardioMinutes: integer("cardioMinutes"), waterLiters: varchar("waterLiters", { length: 10 }),
-}, table => ({ userDate: index("training_sessions_user_date").on(table.userId, table.activityDate), experienceDate: index("training_sessions_experience_date").on(table.userId, table.experience, table.activityDate) }));
+}, table => ({ userDate: index("training_sessions_user_date").on(table.userId, table.activityDate), experienceDate: index("training_sessions_experience_date").on(table.userId, table.experience, table.activityDate), experienceValid: check("training_sessions_experience_check", sql`${table.experience} IN ('man', 'woman')`) }));
 export const trainingSets = pgTable("training_sets", {
   id: varchar("id", { length: 80 }).primaryKey(), sessionId: varchar("sessionId", { length: 36 }).notNull(), exerciseIndex: integer("exerciseIndex").notNull(), setIndex: integer("setIndex").notNull(),
   exerciseId: varchar("exerciseId", { length: 8 }).notNull(), reps: integer("reps"), seconds: integer("seconds"), loadKg: varchar("loadKg", { length: 12 }), note: varchar("note", { length: 500 }), confirmedAt: timestamp("confirmedAt").defaultNow().notNull(), voidedAt: timestamp("voidedAt"),
@@ -126,7 +127,7 @@ export const workoutPlans = pgTable("workout_plans", {
   exercisesJson: text("exercisesJson").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
-}, table => ({ userPlans: index("workout_plans_user_created").on(table.userId, table.createdAt), experiencePlans: index("workout_plans_experience").on(table.userId, table.experience) }));
+}, table => ({ userPlans: index("workout_plans_user_created").on(table.userId, table.createdAt), experiencePlans: index("workout_plans_experience").on(table.userId, table.experience), experienceValid: check("workout_plans_experience_check", sql`${table.experience} IN ('man', 'woman')`) }));
 
 export const bodyAnalyses = pgTable("body_analyses", {
   id: serial("id").primaryKey(),
