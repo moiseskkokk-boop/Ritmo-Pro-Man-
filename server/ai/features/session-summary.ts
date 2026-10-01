@@ -1,0 +1,2 @@
+import { generateWithGemini } from "../gemini-client";
+export async function runSessionSummary(input:unknown){return generateWithGemini({feature:"session_summary",maxOutputTokens:450,systemInstruction:"Resuma em português a sessão usando somente os dados fornecidos. Não invente valores ausentes e não diagnostique. Marcar exercício confirma realização, mas prescrição não prova repetições ou carga realizadas. Seja breve.",contents:[{role:"user",parts:[{text:JSON.stringify(input)}]}]});}

@@ -1,0 +1,2 @@
+import { generateWithGemini } from "../gemini-client";
+export async function runDay5(input:unknown){return generateWithGemini({feature:"day5",maxOutputTokens:1200,responseMimeType:"application/json",systemInstruction:"Decida o quinto dia opcional usando apenas os dados reais. Nunca substitua os quatro treinos principais. Se recuperação/fadiga forem ruins, recomende recuperação/descanso. Se houver sessão, use somente exerciseId do catálogo. Retorne JSON com recommendation, rationale, confidence e exercises.",contents:[{role:"user",parts:[{text:JSON.stringify(input)}]}]});}
