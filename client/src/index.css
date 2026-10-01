@@ -502,3 +502,24 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible { 
 [data-experience="woman"] .profile-page .border-emerald-950 { border-color:#e878aa!important; }
 [data-experience="woman"] .profile-page .section-kicker.green,
 [data-experience="woman"] .profile-page .green-text { color:#a83468!important; }
+
+/* Woman shared-page theme: match the light/pink Fitness workspace exactly. */
+[data-experience="woman"] .profile-page.theme-woman-light{background:#f5f2ee;color:#171717}
+[data-experience="woman"] .profile-page.theme-woman-light .site-header{background:#fffdf9;color:#171717;border-color:#ddd0d5}
+[data-experience="woman"] .profile-page.theme-woman-light .main-nav a,[data-experience="woman"] .profile-page.theme-woman-light .main-nav button{color:#51414a}
+[data-experience="woman"] .profile-page.theme-woman-light .main-nav a:hover,[data-experience="woman"] .profile-page.theme-woman-light .main-nav a.active,[data-experience="woman"] .profile-page.theme-woman-light .nav-logout:hover{color:#a83468}
+[data-experience="woman"] .profile-page.theme-woman-light .language-picker,[data-experience="woman"] .profile-page.theme-woman-light .theme-toggle,[data-experience="woman"] .profile-page.theme-woman-light .account-chip{background:#fff;color:#171717;border-color:#d8c5ce}
+[data-experience="woman"] .profile-page.theme-woman-light .account-logout{color:#a83468;border-color:#e8c0d2}
+[data-experience="woman"] .profile-page.theme-woman-light .profile-hero{background:#f5f2ee;color:#171717}
+[data-experience="woman"] .profile-page.theme-woman-light .profile-hero p{color:#63535c}
+[data-experience="woman"] .profile-page.theme-woman-light .profile-content,[data-experience="woman"] .profile-page.theme-woman-light .profile-login{background:#f5f2ee;color:#171717}
+[data-experience="woman"] .profile-page.theme-woman-light .profile-card{background:#fffdf9;color:#171717;border-color:#ddd0d5;box-shadow:0 12px 30px rgba(88,50,68,.06)}
+[data-experience="woman"] .profile-page.theme-woman-light .profile-details div,[data-experience="woman"] .profile-page.theme-woman-light .profile-actions{border-color:#eadbe1}
+[data-experience="woman"] .profile-page.theme-woman-light .profile-details strong{color:#171717}
+[data-experience="woman"] .profile-page.theme-woman-light .profile-card>p,[data-experience="woman"] .profile-page.theme-woman-light .photo-card-copy p{color:#63535c}
+[data-experience="woman"] .profile-page.theme-woman-light .profile-photo-stage{border-color:#e878aa;background:#fff;box-shadow:0 0 0 1px rgba(232,120,170,.18),0 0 26px rgba(245,167,199,.2)}
+[data-experience="woman"] .profile-page.theme-woman-light .profile-avatar-placeholder{color:#a83468}
+[data-experience="woman"] .profile-page.theme-woman-light .profile-avatar-placeholder span{color:#a83468}
+[data-experience="woman"] .profile-page.theme-woman-light .outline-btn,[data-experience="woman"] .profile-page.theme-woman-light .danger-outline,[data-experience="woman"] .profile-page.theme-woman-light .text-button{border-color:#d8c5ce;color:#51414a;background:#fff}
+[data-experience="woman"] .profile-page.theme-woman-light .dark-btn{background:#f5a7c7;color:#171717;border-color:#e878aa}
+[data-experience="woman"] .profile-page.theme-woman-light :focus-visible{outline-color:#e878aa}

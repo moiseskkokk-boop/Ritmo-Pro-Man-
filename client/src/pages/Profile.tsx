@@ -124,7 +124,7 @@ export default function Profile() {
     setError("");
   };
 
-  return <div data-experience={user?.experience ?? "general"} className={`ritmo-page profile-page ${isDark ? "theme-dark" : ""}`} id="top">
+  return <div data-experience={user?.experience ?? "general"} className={`ritmo-page profile-page ${user?.experience === "woman" ? "theme-woman-light" : (isDark ? "theme-dark" : "")}`} id="top">
     <header className="site-header">
       <a className="brand" href="/treino" aria-label="Ritmo Pro início"><span className="brand-mark"><img src={user?.experience === "woman" ? "/brand/ritmo-pro-woman.png" : "/brand/ritmo-pro-man.png"} alt="" /></span><span><strong>{user?.experience === "woman" ? "Ritmo Woman" : "Ritmo Pro"}</strong><small>TREINO / 04X</small></span></a>
       <nav className="main-nav"><a href={user?.experience === "woman" ? "/woman" : "/dashboard"}>{language === "en" ? "Home" : language === "es" ? "Inicio" : "Início"}</a><a className="active" href="/perfil">{t.profile}</a><a href={user?.experience === "woman" ? "/woman" : "/treino"}>{t.training}</a><a href="/treinos">Meus treinos</a><a href="/avaliacao">Avaliação</a><a href="/analise">{t.analysis}</a><a href="/assinatura">Assinatura</a>{user && <a href="/sair">{t.logout}</a>}</nav>
