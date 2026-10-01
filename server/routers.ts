@@ -252,7 +252,7 @@ export const appRouter = router({
     }),
     register: publicProcedure.input(z.object({ name: z.string().trim().min(2).max(100), email: z.string().trim().email().max(320), password: strongPassword, acceptedTerms: z.literal(true) })).mutation(async ({ ctx, input }) => {
       const email = input.email.trim().toLowerCase();
-      if (!await authRateAllowed(ctx, "register", email, 5)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos e tente novamente." });
+      if (!providerIpRateAllowed(ctx, "register", 20)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos e tente novamente." });
       const hashedPassword = await passwordHash(input.password);
       if (await getUserByEmail(email)) return { success: true as const };
       let user: User | undefined;
