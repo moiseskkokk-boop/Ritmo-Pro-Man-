@@ -12,7 +12,7 @@ async function migrate() {
   });
   try {
     const db = drizzle(pool);
-    await runMigrations(db, { migrationsFolder: "drizzle" });
+    await runMigrations(db, { migrationsFolder: "drizzle-pg" });
     console.log("Migration validation completed.");
   } finally {
     await pool.end();
