@@ -198,6 +198,13 @@ export async function setPendingUserEmail(userId: number, email: string) {
   return getUserById(userId);
 }
 
+export async function updateUserExperience(userId: number, experience: "man" | "woman") {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.update(users).set({ experience, updatedAt: new Date() }).where(eq(users.id, userId));
+  return getUserById(userId);
+}
+
 export async function updateUserName(userId: number, name: string) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");

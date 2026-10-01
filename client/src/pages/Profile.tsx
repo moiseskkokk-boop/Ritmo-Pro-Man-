@@ -126,8 +126,8 @@ export default function Profile() {
 
   return <div className={`ritmo-page profile-page ${isDark ? "theme-dark" : ""}`} id="top">
     <header className="site-header">
-      <a className="brand" href="/treino" aria-label="Ritmo Pro Man início"><span className="brand-mark">R</span><span><strong>Ritmo Pro Man</strong><small>TREINO / 04X</small></span></a>
-      <nav className="main-nav"><a href="/dashboard">{language === "en" ? "Home" : language === "es" ? "Inicio" : "Início"}</a><a className="active" href="/perfil">{t.profile}</a><a href="/treino">{t.training}</a><a href="/treinos">Meus treinos</a><a href="/avaliacao">Avaliação</a><a href="/analise">{t.analysis}</a><a href="/assinatura">Assinatura</a>{user && <a href="/sair">{t.logout}</a>}</nav>
+      <a className="brand" href="/treino" aria-label="Ritmo Pro início"><span className="brand-mark">R</span><span><strong>Ritmo Pro</strong><small>TREINO / 04X</small></span></a>
+      <nav className="main-nav"><a href={user?.experience === "woman" ? "/woman" : "/dashboard"}>{language === "en" ? "Home" : language === "es" ? "Inicio" : "Início"}</a><a className="active" href="/perfil">{t.profile}</a><a href={user?.experience === "woman" ? "/woman" : "/treino"}>{t.training}</a><a href="/treinos">Meus treinos</a><a href="/avaliacao">Avaliação</a><a href="/analise">{t.analysis}</a><a href="/assinatura">Assinatura</a>{user && <a href="/sair">{t.logout}</a>}</nav>
       <label className="language-picker"><span>{t.lang}</span><select value={language} onChange={event => setLang(event.target.value as Language)} aria-label={t.lang}><option value="pt">Português</option><option value="en">English</option><option value="es">Español</option></select></label>
       <div className="header-actions"><button className="theme-toggle" onClick={toggleTheme} aria-label={isDark ? t.light : t.dark}>{isDark ? <Sun size={15}/> : <Moon size={15}/>}<span>{isDark ? t.light : t.dark}</span></button>{loading ? <span className="auth-loading">...</span> : user ? <div className="account-chip">{user.profileImageUrl ? <img className="account-avatar" src={user.profileImageUrl} alt={displayName}/> : <span className="account-avatar account-avatar-fallback">{displayName.slice(0, 1).toUpperCase()}</span>}<div><strong>{displayName}</strong><small>{user.email || ""}</small></div><button className="account-logout" onClick={() => logout()}>{t.logout}</button></div> : <button className="dark-btn" onClick={startLogin}>{t.login}</button>}</div>
     </header>
@@ -135,6 +135,7 @@ export default function Profile() {
       {!user ? <section className="profile-login section-shell"><div className="profile-card"><div className="profile-icon"><UserRound size={28}/></div><div className="section-kicker green">{t.profile}</div><h1>{t.title}</h1><p>{t.signInLead}</p><button className="dark-btn large" onClick={startLogin}>{t.login}</button></div></section> : <>
         <section className="profile-hero section-shell"><div className="section-kicker green">{t.kicker}</div><h1>{t.title}</h1><p>{t.lead}</p></section>
         <section className="profile-content section-shell">
+          <div className="profile-card"><div className="card-kicker">Versão do treino</div><h2>{user.experience === "woman" ? "Ritmo Woman" : "Ritmo Man"}</h2><p>Use a mesma conta e assinatura nas duas experiências.</p><div className="profile-actions"><a className="outline-btn" href="/escolher-versao">Trocar versão</a></div></div>
           <div className="profile-card account-details"><div className="card-kicker">{t.account}</div><div className="profile-details"><div><small>{t.name}</small><strong>{displayName}</strong></div><div><small>{t.email}</small><strong>{user.email || "—"}</strong></div></div>
             <form className="mt-5 grid gap-3 border-t border-slate-200 pt-5 sm:grid-cols-[1fr_auto]" onSubmit={event => { event.preventDefault(); updateNameMutation.mutate({ name: profileName }); }}>
               <label className="text-sm font-medium">Editar nome<input required minLength={2} maxLength={100} value={profileName} onChange={event => setProfileName(event.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5"/></label>
@@ -147,6 +148,6 @@ export default function Profile() {
         </section>
       </>}
     </main>
-    <footer><div className="section-shell"><div className="brand footer-brand"><span className="brand-mark">R</span><span><strong>Ritmo Pro Man</strong><small>TREINO / 04X SEMANA</small></span></div></div></footer>
+    <footer><div className="section-shell"><div className="brand footer-brand"><span className="brand-mark">R</span><span><strong>Ritmo Pro</strong><small>TREINO / 04X SEMANA</small></span></div></div></footer>
   </div>;
 }

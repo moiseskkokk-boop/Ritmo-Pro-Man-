@@ -26,6 +26,7 @@ export const users = pgTable("users", {
   pendingEmail: varchar("pendingEmail", { length: 320 }),
   profileImageKey: varchar("profileImageKey", { length: 255 }),
   profileImageUrl: varchar("profileImageUrl", { length: 512 }),
+  experience: varchar("experience", { length: 16, enum: ["man", "woman"] }),
   role: varchar("role", { length: 32, enum: ["user", "admin"] }).default("user").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),

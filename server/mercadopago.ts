@@ -103,7 +103,7 @@ export class MercadoPagoClient {
       method: "POST",
       headers: { "x-idempotency-key": input.externalReference },
       body: JSON.stringify({
-        reason: "Ritmo Pro Man — Plano mensal",
+        reason: "Ritmo Pro — Plano mensal",
         external_reference: input.externalReference,
         payer_email: input.email,
         auto_recurring: { frequency: 1, frequency_type: "months", transaction_amount: Number(input.amount), currency_id: input.currency },

@@ -22,6 +22,13 @@
       "when": 1790873000000,
       "tag": "0002_session_water_cardio",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790876620899,
+      "tag": "0003_chief_hellcat",
+      "breakpoints": true
     }
   ]
 }

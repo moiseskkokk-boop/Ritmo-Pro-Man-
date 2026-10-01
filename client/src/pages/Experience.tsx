@@ -1,0 +1,14 @@
+import { useAuth } from "@/_core/hooks/useAuth";
+import { trpc } from "@/lib/trpc";
+import { Dumbbell, Heart } from "lucide-react";
+import { useLocation } from "wouter";
+
+export default function Experience() {
+  const { user, loading, refresh } = useAuth();
+  const [, setLocation] = useLocation();
+  const mutation = trpc.profile.setExperience.useMutation({ onSuccess: async result => { await refresh(); setLocation(result.experience === "woman" ? "/woman" : "/dashboard"); } });
+  if (loading) return <main className="grid min-h-screen place-items-center">Ritmo Pro…</main>;
+  if (!user) { setLocation("/login?next=/escolher-versao"); return null; }
+  const choose = (experience: "man"|"woman") => mutation.mutate({ experience });
+  return <main className="min-h-screen bg-[#111] px-5 py-12 text-white"><div className="mx-auto max-w-5xl"><header className="text-center"><img src="/ritmo-mark.png" className="mx-auto h-16 w-16 rounded-2xl"/><p className="mt-5 text-xs font-bold uppercase tracking-[.28em] text-white/50">Ritmo Pro</p><h1 className="mt-3 text-4xl font-black tracking-tight sm:text-6xl">Escolha sua versão</h1><p className="mt-3 text-white/55">A mesma conta. Duas experiências de treino.</p></header><section className="mt-10 grid gap-5 md:grid-cols-2"><button disabled={mutation.isPending} onClick={()=>choose("man")} className="group rounded-[28px] border border-white/15 bg-[#151a16] p-8 text-left transition hover:-translate-y-1 hover:border-[#b7f34a]"><img src="/ritmo-man-logo.png" className="h-20 w-20 rounded-2xl object-cover"/><Dumbbell className="mt-8 text-[#b7f34a]"/><h2 className="mt-3 text-3xl font-black">Ritmo Man</h2><p className="mt-2 text-sm text-white/55">Performance, força e evolução com a estrutura masculina atual.</p></button><button disabled={mutation.isPending} onClick={()=>choose("woman")} className="group rounded-[28px] border border-white/15 bg-[#21171c] p-8 text-left transition hover:-translate-y-1 hover:border-[#f5a7c7]"><img src="/ritmo-woman-logo.png" className="h-20 w-20 rounded-2xl object-cover"/><Heart className="mt-8 text-[#f5a7c7]"/><h2 className="mt-3 text-3xl font-black">Ritmo Woman</h2><p className="mt-2 text-sm text-white/55">Treinos femininos com foco em inferiores, glúteos e desenvolvimento equilibrado.</p></button></section>{mutation.error&&<p className="mt-5 text-center text-red-300">{mutation.error.message}</p>}</div></main>;
+}

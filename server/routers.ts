@@ -12,7 +12,7 @@ import { TRPCError } from "@trpc/server";
 import { getSessionCookieOptions } from "./_core/cookies";
 import type { TrpcContext } from "./_core/context";
 import { ENV, getJwtSecret } from "./_core/env";
-import { attachMercadoPagoCheckout, createPendingSubscription, createLocalUser, createOAuthUser, createWorkoutPlan, deleteWorkoutPlan, getLatestUserSubscription, getUserByEmail, getUserById, getWorkoutPlans, invalidateUserSessions, saveBodyAnalysis, setUserLastSignedIn, updateSubscriptionByProviderId, updateUserName, updateUserPassword, updateWorkoutPlan, consumeAuthEmailToken, consumeAuthRateLimit, issueAuthEmailToken, markEmailVerified, setPendingUserEmail, updateUserEmail } from "./db";
+import { attachMercadoPagoCheckout, createPendingSubscription, createLocalUser, createOAuthUser, createWorkoutPlan, deleteWorkoutPlan, getLatestUserSubscription, getUserByEmail, getUserById, getWorkoutPlans, invalidateUserSessions, saveBodyAnalysis, setUserLastSignedIn, updateSubscriptionByProviderId, updateUserName, updateUserExperience, updateUserPassword, updateWorkoutPlan, consumeAuthEmailToken, consumeAuthRateLimit, issueAuthEmailToken, markEmailVerified, setPendingUserEmail, updateUserEmail } from "./db";
 import { invokeLLM } from "./_core/llm";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { getRecentTrainingContext, clearCurrentAssessment, deleteAllUserData, getAssessmentHistory, getBodyAnalysisHistory, getCurrentAssessment, getDailyHistory, getDailyLog, getWeeklyActivityAnalysis, getWearableActivities, getWearableConnections, ingestWearableActivity, resetUserProgress, saveAssessment, saveDailyLog, updateUserProfileImage, upsertWearableConnection } from "./db";
@@ -38,6 +38,7 @@ async function toClientUser(user: User) {
     loginMethod: user.loginMethod,
     hasPassword: Boolean(user.passwordHash),
     profileImageUrl,
+    experience: user.experience,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
     lastSignedIn: user.lastSignedIn,
@@ -266,6 +267,11 @@ export const appRouter = router({
 
 
   profile: router({
+    setExperience: protectedProcedure.input(z.object({ experience: z.enum(["man", "woman"]) })).mutation(async ({ ctx, input }) => {
+      const user = await updateUserExperience(ctx.user.id, input.experience);
+      if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "Perfil não encontrado." });
+      return toClientUser(user);
+    }),
     updateName: protectedProcedure.input(z.object({ name: z.string().trim().min(2).max(100) })).mutation(async ({ ctx, input }) => {
       const user = await updateUserName(ctx.user.id, input.name);
       if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "Perfil não encontrado." });
@@ -295,7 +301,7 @@ export const appRouter = router({
     }),
     subscription: protectedProcedure.query(async ({ ctx }) => {
       const subscription = await getLatestUserSubscription(ctx.user.id);
-      if (!subscription) return { status: "none" as const, premium: false, plan: null, currentPeriodEnd: null, lastPaymentStatus: null, offer: { name: "Ritmo Pro Man", amount: ENV.mercadoPagoPlanMonthlyPrice, currency: ENV.mercadoPagoCurrency.toUpperCase(), interval: "month" as const } };
+      if (!subscription) return { status: "none" as const, premium: false, plan: null, currentPeriodEnd: null, lastPaymentStatus: null, offer: { name: "Ritmo Pro", amount: ENV.mercadoPagoPlanMonthlyPrice, currency: ENV.mercadoPagoCurrency.toUpperCase(), interval: "month" as const } };
       const status = subscription.status === "active" && subscription.currentPeriodEnd && subscription.currentPeriodEnd.getTime() <= Date.now() ? "expired" as const : subscription.status;
       return {
         status,
@@ -303,7 +309,7 @@ export const appRouter = router({
         plan: { code: subscription.planCode, amount: subscription.amount, currency: subscription.currency, interval: "month" as const },
         currentPeriodEnd: subscription.currentPeriodEnd,
         lastPaymentStatus: subscription.lastPaymentStatus,
-        offer: { name: "Ritmo Pro Man", amount: subscription.amount, currency: subscription.currency, interval: "month" as const },
+        offer: { name: "Ritmo Pro", amount: subscription.amount, currency: subscription.currency, interval: "month" as const },
       };
     }),
     checkout: protectedProcedure.mutation(async ({ ctx }) => {
@@ -322,7 +328,7 @@ export const appRouter = router({
       if (ENV.isProduction && !publicUrl.startsWith("https://")) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "PUBLIC_APP_URL must use HTTPS in production." });
       const client = new MercadoPagoClient();
       const draft = existing?.status === "pending" && !existing.checkoutUrl ? existing : await createPendingSubscription({
-        userId: ctx.user.id, planCode: "ritmo_monthly", planName: "Ritmo Pro Man Mensal", amount: price, currency,
+        userId: ctx.user.id, planCode: "ritmo_monthly", planName: "Ritmo Pro Mensal", amount: price, currency,
         externalReference: makeUserExternalReference(ctx.user.id, randomBytes(18).toString("hex")),
       });
       if (!draft) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Could not reserve the subscription checkout." });

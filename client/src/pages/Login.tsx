@@ -36,7 +36,7 @@ export default function Login() {
     onSuccess: async () => {
       await Promise.all([utils.auth.me.invalidate(), utils.auth.sessionStatus.invalidate()]);
       const next = new URLSearchParams(window.location.search).get("next");
-      setLocation(next?.startsWith("/") && !next.startsWith("//") ? next : "/dashboard");
+      setLocation(next?.startsWith("/") && !next.startsWith("//") ? next : "/escolher-versao");
     },
     onError: e => { challengeRef.current = null; setError(e.message); },
   });
@@ -66,7 +66,7 @@ export default function Login() {
   return <main className="min-h-screen bg-[radial-gradient(ellipse_at_top,#e6f2eb,transparent_55%),#f7f8f6] px-4 py-10 text-slate-900">
     <div className="mx-auto grid min-h-[80vh] max-w-6xl items-center gap-12 lg:grid-cols-[1fr_440px]">
       <section className="hidden lg:block">
-        <p className="text-sm font-semibold uppercase tracking-[.22em] text-emerald-800">Ritmo Pro Man</p>
+        <p className="text-sm font-semibold uppercase tracking-[.22em] text-emerald-800">Ritmo Pro</p>
         <h1 className="mt-4 max-w-xl text-5xl font-semibold leading-tight tracking-tight">Seu treino, sua evolução, no seu ritmo.</h1>
       </section>
       <section className="mx-auto w-full max-w-md rounded-3xl border border-slate-200 bg-white p-7 shadow-xl shadow-slate-900/5 sm:p-9">

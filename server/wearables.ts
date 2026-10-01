@@ -51,7 +51,7 @@ async function beginCorosOAuth(userId: number, existingPayload: string | null) {
     try { registeredClientId = (JSON.parse(decryptWearableSecret(existingPayload)) as { client_id?: string }).client_id; } catch { registeredClientId = undefined; }
   }
   if (!registeredClientId) {
-    const registrationResponse = await fetch(metadata.registration_endpoint, { method: "POST", headers: { "content-type": "application/json", accept: "application/json" }, body: JSON.stringify({ client_name: "Ritmo Pro Man", application_type: "web", redirect_uris: [redirectUri], response_types: ["code"], grant_types: ["authorization_code", "refresh_token"], token_endpoint_auth_method: "none", scope: "openid mcp.tools offline_access" }), signal: AbortSignal.timeout(15_000) });
+    const registrationResponse = await fetch(metadata.registration_endpoint, { method: "POST", headers: { "content-type": "application/json", accept: "application/json" }, body: JSON.stringify({ client_name: "Ritmo Pro", application_type: "web", redirect_uris: [redirectUri], response_types: ["code"], grant_types: ["authorization_code", "refresh_token"], token_endpoint_auth_method: "none", scope: "openid mcp.tools offline_access" }), signal: AbortSignal.timeout(15_000) });
     const registration = await registrationResponse.json() as { client_id?: string };
     if (!registrationResponse.ok || !registration.client_id) throw new Error("COROS dynamic client registration failed.");
     registeredClientId = registration.client_id;

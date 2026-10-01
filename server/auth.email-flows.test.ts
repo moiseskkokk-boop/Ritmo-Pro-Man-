@@ -36,7 +36,7 @@ describe("authentication email flows", () => {
     vi.clearAllMocks();
     ENV.appPublicUrl = "https://ritmoproman.test";
     ENV.resendApiKey = "test-only";
-    ENV.emailFrom = "Ritmo Pro Man <no-reply@example.test>";
+    ENV.emailFrom = "Ritmo Pro <no-reply@example.test>";
     db.consumeAuthRateLimit.mockResolvedValue(true);
     db.issueAuthEmailToken.mockResolvedValue(undefined);
     db.getUserByEmail.mockResolvedValue(undefined);
@@ -150,7 +150,7 @@ describe("authentication email flows", () => {
       expect(template.html).toContain("/termos");
       expect(template.html).toContain("/privacidade");
       expect(template.html).toContain("href=\"https://app.example.net/safe\"");
-      expect(template.text).toContain("Ritmo Pro Man");
+      expect(template.text).toContain("Ritmo Pro");
       expect(template.html).not.toContain("<script>");
     }
   });

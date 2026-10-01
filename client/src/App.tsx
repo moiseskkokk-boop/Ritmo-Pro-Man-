@@ -19,6 +19,8 @@ const LegalPage = lazy(() => import("./pages/Legal"));
 const WeeklyAssessmentPage = lazy(() => import("./pages/WeeklyAssessment"));
 const SubscriptionPage = lazy(() => import("./pages/Subscription"));
 const SignOutPage = lazy(() => import("./pages/SignOut"));
+const Experience = lazy(() => import("./pages/Experience"));
+const Woman = lazy(() => import("./pages/Woman"));
 
 const TrainingPage = () => <Fitness view="training" />;
 const AnalysisPage = () => <Home view="analysis" />;
@@ -29,7 +31,7 @@ function Router() {
     <Suspense
       fallback={
         <main className="grid min-h-screen place-items-center" role="status">
-          Ritmo Pro Man…
+          Ritmo Pro…
         </main>
       }
     >
@@ -38,6 +40,8 @@ function Router() {
         <Route path={"/treino"} component={TrainingPage} />
         <Route path={"/analise"} component={AnalysisPage} />
         <Route path={"/perfil"} component={Profile} />
+        <Route path={"/escolher-versao"} component={Experience} />
+        <Route path={"/woman"} component={Woman} />
         <Route path={"/dashboard"}>{() => <Fitness view="dashboard" />}</Route>
         <Route path={"/treinos"} component={WorkoutsLibrary} />
         <Route path={"/treinos/criar"} component={WorkoutBuilder} />
