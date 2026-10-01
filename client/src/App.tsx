@@ -20,7 +20,6 @@ const SmartwatchPage = lazy(() => import("./pages/Smartwatch"));
 const WeeklyAssessmentPage = lazy(() => import("./pages/WeeklyAssessment"));
 const SubscriptionPage = lazy(() => import("./pages/Subscription"));
 const SignOutPage = lazy(() => import("./pages/SignOut"));
-const ConfirmEmail = lazy(() => import("./pages/ConfirmEmail"));
 
 const TrainingPage = () => <Fitness view="training" />;
 const AnalysisPage = () => <Home view="analysis" />;
@@ -56,7 +55,6 @@ function Router() {
           {() => <LegalPage kind="privacy" />}
         </Route>
         <Route path={"/login"} component={Login} />
-        <Route path={"/confirm-email"} component={ConfirmEmail} />
         <Route path={"/404"} component={NotFound} />
         {/* Final fallback route */}
         <Route component={NotFound} />

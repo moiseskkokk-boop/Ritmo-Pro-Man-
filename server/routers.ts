@@ -50,28 +50,24 @@ function isDuplicateEntry(error: unknown): boolean {
   return false;
 }
 
-const appleJwks = createRemoteJWKSet(new URL("https://appleid.apple.com/auth/keys"));
 const GOOGLE_CHALLENGE_COOKIE = "ritmo_google_login";
-const APPLE_CHALLENGE_COOKIE = "ritmo_apple_login";
 function requestCookie(req: TrpcContext["req"], name: string) {
   return (req.headers.cookie || "").split(";").map(value => value.trim()).find(value => value.startsWith(name + "="))?.slice(name.length + 1);
 }
-async function createLoginChallenge(ctx: Pick<TrpcContext, "req" | "res">, provider: "google" | "apple") {
+async function createLoginChallenge(ctx: Pick<TrpcContext, "req" | "res">) {
   const nonce = randomBytes(32).toString("base64url");
   const state = randomBytes(24).toString("base64url");
-  const token = await new SignJWT({ purpose: provider + "_login", nonce, state }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("10m").sign(getJwtSecret());
-  const cookieName = provider === "google" ? GOOGLE_CHALLENGE_COOKIE : APPLE_CHALLENGE_COOKIE;
-  ctx.res.cookie(cookieName, token, { ...getSessionCookieOptions(ctx.req), path: "/api/trpc", maxAge: 10 * 60 * 1000 });
+  const token = await new SignJWT({ purpose: "google_login", nonce, state }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("10m").sign(getJwtSecret());
+  ctx.res.cookie(GOOGLE_CHALLENGE_COOKIE, token, { ...getSessionCookieOptions(ctx.req), path: "/api/trpc", maxAge: 10 * 60 * 1000 });
   return { nonce, state, challengeToken: token };
 }
-async function consumeLoginChallenge(ctx: Pick<TrpcContext, "req" | "res">, provider: "google" | "apple", suppliedToken?: string) {
-  const cookieName = provider === "google" ? GOOGLE_CHALLENGE_COOKIE : APPLE_CHALLENGE_COOKIE;
-  const token = suppliedToken || requestCookie(ctx.req, cookieName);
-  ctx.res.clearCookie(cookieName, { ...getSessionCookieOptions(ctx.req), path: "/api/trpc" });
+async function consumeLoginChallenge(ctx: Pick<TrpcContext, "req" | "res">, suppliedToken: string) {
+  const token = suppliedToken || requestCookie(ctx.req, GOOGLE_CHALLENGE_COOKIE);
+  ctx.res.clearCookie(GOOGLE_CHALLENGE_COOKIE, { ...getSessionCookieOptions(ctx.req), path: "/api/trpc" });
   if (!token) throw new TRPCError({ code: "UNAUTHORIZED", message: "A validação de segurança do provedor expirou. Tente novamente." });
   try {
     const { payload } = await jwtVerify(token, getJwtSecret(), { algorithms: ["HS256"] });
-    if (payload.purpose !== provider + "_login" || typeof payload.nonce !== "string" || typeof payload.state !== "string") throw new Error("Invalid challenge");
+    if (payload.purpose !== "google_login" || typeof payload.nonce !== "string" || typeof payload.state !== "string") throw new Error("Invalid challenge");
     return { nonce: payload.nonce, state: payload.state };
   } catch {
     throw new TRPCError({ code: "UNAUTHORIZED", message: "A validação de segurança do provedor expirou. Tente novamente." });
@@ -157,15 +153,14 @@ async function deliverEmailAction(user: User, purpose: AuthTokenPurpose, kind: "
   if (!url) return false;
   return sendAuthEmail(kind, targetEmail ?? user.email ?? "", { name: user.name, actionUrl: url }, tokenHash);
 }
-async function signInFederatedUser(provider: "google" | "apple", providerId: string, emailValue: string, nameValue: unknown, acceptedTerms: boolean) {
+async function signInGoogleUser(providerId: string, emailValue: string, nameValue: unknown) {
   const email = emailValue.trim().toLowerCase();
   if (!z.string().email().max(320).safeParse(email).success) throw new TRPCError({ code: "UNAUTHORIZED", message: "Não foi possível validar a conta deste provedor." });
   let user = await getUserByEmail(email);
   if (!user) {
-    if (!acceptedTerms) throw new TRPCError({ code: "FORBIDDEN", message: "Aceite os Termos de Uso e a Política de Privacidade para criar uma conta." });
     try {
       const acceptedAt = new Date();
-      user = await createOAuthUser({ provider, providerId, email, name: typeof nameValue === "string" && nameValue.trim() ? nameValue.trim().slice(0, 100) : email.split("@")[0], termsAcceptedAt: acceptedAt, privacyAcceptedAt: acceptedAt, termsAcceptedVersion: POLICY_VERSION, privacyAcceptedVersion: POLICY_VERSION });
+      user = await createOAuthUser({ provider: "google", providerId, email, name: typeof nameValue === "string" && nameValue.trim() ? nameValue.trim().slice(0, 100) : email.split("@")[0], termsAcceptedAt: acceptedAt, privacyAcceptedAt: acceptedAt, termsAcceptedVersion: POLICY_VERSION, privacyAcceptedVersion: POLICY_VERSION });
     } catch (error) {
       if (!isDuplicateEntry(error)) throw error;
       user = await getUserByEmail(email);
@@ -239,132 +234,24 @@ export const appRouter = router({
   auth: router({
     me: publicProcedure.query(async opts => opts.ctx.user ? toClientUser(opts.ctx.user) : null),
     sessionStatus: publicProcedure.query(opts => ({ expired: Boolean(opts.ctx.sessionExpired) })),
-    providers: publicProcedure.query(() => ({ googleClientId: ENV.googleClientId || null, appleServiceId: ENV.appleServiceId || null, emailConfigured: emailDeliveryConfigured() })),
+    providers: publicProcedure.query(() => ({ googleClientId: ENV.googleClientId || null })),
     googleChallenge: publicProcedure.mutation(async ({ ctx }) => {
       if (!providerIpRateAllowed(ctx, "google_challenge", 30)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos." });
-      return createLoginChallenge(ctx, "google");
+      return createLoginChallenge(ctx);
     }),
-    appleChallenge: publicProcedure.mutation(async ({ ctx }) => {
-      if (!providerIpRateAllowed(ctx, "apple_challenge", 30)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos." });
-      return createLoginChallenge(ctx, "apple");
-    }),
-    register: publicProcedure.input(z.object({ name: z.string().trim().min(2).max(100), email: z.string().trim().email().max(320), password: strongPassword, acceptedTerms: z.literal(true) })).mutation(async ({ ctx, input }) => {
-      const email = input.email.trim().toLowerCase();
-      if (!providerIpRateAllowed(ctx, "register", 20)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos e tente novamente." });
-      const hashedPassword = await passwordHash(input.password);
-      if (await getUserByEmail(email)) return { success: true as const };
-      let user: User | undefined;
-      try {
-        const acceptedAt = new Date();
-        user = await createLocalUser({ name: input.name, email, passwordHash: hashedPassword, openId: randomBytes(24).toString("hex"), termsAcceptedAt: acceptedAt, privacyAcceptedAt: acceptedAt, termsAcceptedVersion: POLICY_VERSION, privacyAcceptedVersion: POLICY_VERSION });
-      } catch (error) {
-        if (isDuplicateEntry(error)) return { success: true as const };
-        throw error;
-      }
-      if (!user) throw new Error("Could not create account");
-      void deliverEmailAction(user, "verify_email", "verify_email").catch(() => console.warn("[AuthEmail] Confirmation message could not be queued"));
-      return { success: true as const };
-    }),
-    login: publicProcedure.input(z.object({ email: z.string().trim().email().max(320), password: z.string().min(1).max(128) })).mutation(async ({ ctx, input }) => {
-      const email = input.email.trim().toLowerCase();
-      if (!await authRateAllowed(ctx, "login", email, 10)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos e tente novamente." });
-      const user = await getUserByEmail(email);
-      const passwordValid = await checkPassword(input.password, user?.passwordHash ?? null);
-      if (!user || !passwordValid) throw new TRPCError({ code: "UNAUTHORIZED", message: "E-mail ou senha inválidos." });
-      if (!user.emailVerifiedAt) throw new TRPCError({ code: "FORBIDDEN", message: "Confirme seu e-mail para acessar a conta. Você pode solicitar um novo link de confirmação." });
-      await setUserLastSignedIn(user.id);
-      await setSession(ctx, user);
-      const signedInUser = await getUserById(user.id);
-      if (!signedInUser) throw new Error("Could not load account");
-      return toClientUser(signedInUser);
-    }),
-    googleSignIn: publicProcedure.input(z.object({ credential: z.string().min(100).max(12000), challengeToken: z.string().min(100).max(4096), acceptedTerms: z.boolean() })).mutation(async ({ ctx, input }) => {
+    googleSignIn: publicProcedure.input(z.object({ credential: z.string().min(100).max(12000), challengeToken: z.string().min(100).max(4096) })).mutation(async ({ ctx, input }) => {
       if (!ENV.googleClientId) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Login com Google ainda não está configurado." });
       if (!providerIpRateAllowed(ctx, "google_signin", 20)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos." });
-      const challenge = await consumeLoginChallenge(ctx, "google", input.challengeToken);
+      const challenge = await consumeLoginChallenge(ctx, input.challengeToken);
       const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(input.credential)}`, { signal: AbortSignal.timeout(10_000) });
       if (!response.ok) throw new TRPCError({ code: "UNAUTHORIZED", message: "Não foi possível validar a conta do Google." });
       const claims = await response.json() as { aud?: string; iss?: string; sub?: string; email?: string; email_verified?: string | boolean; name?: string; exp?: string; nonce?: string };
       const expiry = Number(claims.exp);
       if (claims.aud !== ENV.googleClientId || !["accounts.google.com", "https://accounts.google.com"].includes(claims.iss ?? "") || !claims.sub || !claims.email || ![true, "true"].includes(claims.email_verified ?? false) || !Number.isFinite(expiry) || expiry * 1000 <= Date.now() || claims.nonce !== challenge.nonce) throw new TRPCError({ code: "UNAUTHORIZED", message: "Não foi possível validar a conta do Google." });
-      const user = await signInFederatedUser("google", claims.sub, claims.email, claims.name, input.acceptedTerms);
+      const user = await signInGoogleUser(claims.sub, claims.email, claims.name);
       if (!user) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível carregar a conta." });
       await setSession(ctx, user);
       return toClientUser(user);
-    }),
-    appleSignIn: publicProcedure.input(z.object({ identityToken: z.string().min(100).max(12000), returnedState: z.string().min(16).max(128), name: z.string().max(100).optional(), acceptedTerms: z.boolean() })).mutation(async ({ ctx, input }) => {
-      if (!ENV.appleServiceId) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Login com Apple ainda não está configurado." });
-      if (!providerIpRateAllowed(ctx, "apple_signin", 20)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos." });
-      const challenge = await consumeLoginChallenge(ctx, "apple");
-      if (challenge.state !== input.returnedState) throw new TRPCError({ code: "UNAUTHORIZED", message: "A validação de segurança da Apple falhou." });
-      let claims: Record<string, unknown>;
-      try {
-        const verified = await jwtVerify(input.identityToken, appleJwks, { issuer: "https://appleid.apple.com", audience: ENV.appleServiceId, algorithms: ["RS256"] });
-        claims = verified.payload as Record<string, unknown>;
-      } catch {
-        throw new TRPCError({ code: "UNAUTHORIZED", message: "Não foi possível validar a conta da Apple." });
-      }
-      const nonceHash = createHash("sha256").update(challenge.nonce).digest("hex");
-      if (claims.nonce !== challenge.nonce && claims.nonce !== nonceHash) throw new TRPCError({ code: "UNAUTHORIZED", message: "A validação de segurança da Apple falhou." });
-      if (typeof claims.sub !== "string" || typeof claims.email !== "string" || !(claims.email_verified === true || claims.email_verified === "true")) throw new TRPCError({ code: "UNAUTHORIZED", message: "A Apple não confirmou o e-mail desta conta." });
-      const user = await signInFederatedUser("apple", claims.sub, claims.email, input.name ?? null, input.acceptedTerms);
-      if (!user) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível carregar a conta." });
-      await setSession(ctx, user);
-      return toClientUser(user);
-    }),
-    requestPasswordReset: publicProcedure.input(z.object({ email: z.string().trim().email().max(320) })).mutation(async ({ ctx, input }) => {
-      const email = input.email.trim().toLowerCase();
-      if (!await authRateAllowed(ctx, "password_reset", email, 3)) return { success: true as const };
-      const user = await getUserByEmail(email);
-      if (user?.passwordHash) void deliverEmailAction(user, "password_reset", "password_reset").catch(() => console.warn("[AuthEmail] Recovery message could not be queued"));
-      return { success: true as const };
-    }),
-    resendVerification: publicProcedure.input(z.object({ email: z.string().trim().email().max(320) })).mutation(async ({ ctx, input }) => {
-      const email = input.email.trim().toLowerCase();
-      if (!await authRateAllowed(ctx, "verify_email", email, 3)) return { success: true as const };
-      const user = await getUserByEmail(email);
-      if (user && !user.emailVerifiedAt) void deliverEmailAction(user, "verify_email", "verify_email").catch(() => console.warn("[AuthEmail] Confirmation message could not be queued"));
-      return { success: true as const };
-    }),
-    confirmEmail: publicProcedure.input(z.object({ token: z.string().min(32).max(128) })).mutation(async ({ ctx, input }) => {
-      const tokenHash = createHash("sha256").update(input.token).digest("hex");
-      if (!await authRateAllowed(ctx, "confirm_token", "token", 30)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos." });
-      const verification = await consumeAuthEmailToken(tokenHash, "verify_email");
-      if (verification) {
-        const owner = await getUserById(verification.userId);
-        if (!owner || verification.targetEmail !== owner.email) throw new TRPCError({ code: "BAD_REQUEST", message: "Este link é inválido ou expirou. Solicite uma nova confirmação." });
-        const user = await markEmailVerified(verification.userId, owner.email!, verification.sessionVersion);
-        if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "Não foi possível confirmar esta conta." });
-        await setSession(ctx, user);
-        await sendAuthEmail("welcome", user.email ?? "", { name: user.name }, `welcome-${user.id}`);
-        return { success: true as const, purpose: "verify_email" as const, user: await toClientUser(user) };
-      }
-      const emailChange = await consumeAuthEmailToken(tokenHash, "email_change");
-      const owner = emailChange ? await getUserById(emailChange.userId) : undefined;
-      if (!emailChange?.targetEmail || !owner || owner.pendingEmail !== emailChange.targetEmail) throw new TRPCError({ code: "BAD_REQUEST", message: "Este link é inválido ou expirou. Solicite uma nova confirmação." });
-      let updated: User | undefined;
-      try { updated = await updateUserEmail(owner.id, emailChange.targetEmail, emailChange.sessionVersion); }
-      catch (error) {
-        if (isDuplicateEntry(error)) throw new TRPCError({ code: "BAD_REQUEST", message: "Não foi possível confirmar a alteração. Solicite uma nova confirmação." });
-        throw error;
-      }
-      if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Não foi possível atualizar o e-mail da conta." });
-      await setSession(ctx, updated);
-      await sendAuthEmail("email_changed", emailChange.targetEmail, { name: owner.name }, `email-changed-${owner.id}-${emailChange.targetEmail}`);
-      if (owner.email) await sendAuthEmail("security_alert", owner.email, { name: owner.name, detail: "O endereço de e-mail da sua conta foi alterado. Se você não reconhece esta mudança, entre em contato com o suporte." }, `email-changed-alert-${owner.id}-${emailChange.targetEmail}`);
-      return { success: true as const, purpose: "email_change" as const, user: await toClientUser(updated) };
-    }),
-    resetPassword: publicProcedure.input(z.object({ token: z.string().min(32).max(128), password: strongPassword })).mutation(async ({ ctx, input }) => {
-      if (!await authRateAllowed(ctx, "reset_token", "token", 20)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos." });
-      const tokenHash = createHash("sha256").update(input.token).digest("hex");
-      const token = await consumeAuthEmailToken(tokenHash, "password_reset");
-      const user = token ? await getUserById(token.userId) : undefined;
-      if (!user?.passwordHash || token?.targetEmail !== user.email) throw new TRPCError({ code: "BAD_REQUEST", message: "Este link de recuperação é inválido ou expirou. Solicite um novo." });
-      const updated = await updateUserPassword(user.id, await passwordHash(input.password), token!.sessionVersion);
-      if (!updated) throw new TRPCError({ code: "BAD_REQUEST", message: "Este link de recuperação é inválido ou expirou. Solicite um novo." });
-      await sendAuthEmail("password_changed", user.email ?? "", { name: user.name }, `password-changed-${user.id}-${user.sessionVersion + 1}`);
-      await sendAuthEmail("security_alert", user.email ?? "", { name: user.name, detail: "A senha da sua conta foi redefinida. Se você não reconhece esta ação, entre em contato com o suporte." }, `password-reset-alert-${user.id}-${user.sessionVersion + 1}`);
-      return { success: true as const };
     }),
     logout: publicProcedure.mutation(async ({ ctx }) => {
       ctx.res.clearCookie(COOKIE_NAME, { ...getSessionCookieOptions(ctx.req), maxAge: -1 });

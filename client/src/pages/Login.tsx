@@ -52,7 +52,7 @@ export default function Login() {
       window.google.accounts.id.initialize({
         client_id: clientId,
         nonce: security.nonce,
-        callback: response => signIn.mutate({ credential: response.credential, challengeToken: security.challengeToken, acceptedTerms: true }),
+        callback: response => signIn.mutate({ credential: response.credential, challengeToken: security.challengeToken }),
       });
       button.current.replaceChildren();
       window.google.accounts.id.renderButton(button.current, { theme: "outline", size: "large", shape: "pill", text: "continue_with", width: 360 });
