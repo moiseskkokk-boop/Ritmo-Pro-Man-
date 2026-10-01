@@ -2131,7 +2131,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
     <div className={`ritmo-page ${isDark ? "theme-dark" : ""}`} id="top">
       <header className="site-header">
         <a className="brand" href="#top" aria-label="Ritmo Pro início">
-          <span className="brand-mark">{user?.experience === "woman" ? <img src="/ritmo-woman-icon-192.png" alt="" width={40} height={40} /> : "R"}</span>
+          <span className="brand-mark"><img src={user?.experience === "woman" ? "/brand/ritmo-pro-woman.png" : "/brand/ritmo-pro-man.png"} alt="" /></span>
           <span>
             <strong>{user?.experience === "woman" ? "Ritmo Woman" : "Ritmo Pro"}</strong>
             <small>TREINO / 04X</small>
@@ -3034,7 +3034,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
       <footer>
         <div className="section-shell">
           <div className="brand footer-brand">
-            <span className="brand-mark">{user?.experience === "woman" ? <img src="/ritmo-woman-icon-192.png" alt="" width={40} height={40} /> : "R"}</span>
+            <span className="brand-mark"><img src={user?.experience === "woman" ? "/brand/ritmo-pro-woman.png" : "/brand/ritmo-pro-man.png"} alt="" /></span>
             <span>
               <strong>{user?.experience === "woman" ? "Ritmo Woman" : "Ritmo Pro"}</strong>
               <small>TREINO / 04X SEMANA</small>

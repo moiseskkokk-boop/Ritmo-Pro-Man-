@@ -37,7 +37,7 @@ function Router() {
         </main>
       }
     >
-      <div data-experience={user?.experience ?? "man"}><Switch>
+      <div data-experience={user?.experience ?? "general"}><Switch>
         <Route path={"/"} component={Experience} />
         <Route path={"/treino"} component={TrainingPage} />
         <Route path={"/analise"} component={AnalysisPage} />

@@ -10,13 +10,13 @@
   "lang": "pt-BR",
   "icons": [
     {
-      "src": "/ritmo-mark.svg",
+      "src": "/brand/ritmo-pro.png",
       "sizes": "any",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/ritmo-mark.png",
+      "src": "/brand/ritmo-pro.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"

@@ -1027,7 +1027,7 @@ export default function Fitness({
     <main className="fitness-page">
       <header className="fitness-header">
         <Link className="fitness-brand" href="/dashboard">
-          <img src={user?.experience === "woman" ? "/ritmo-woman-icon-192.png" : "/ritmo-man-logo.png"} alt="" width={40} height={40} /> {user?.experience === "woman" ? "Ritmo Woman" : "Ritmo Pro"}
+          <img src={user?.experience === "woman" ? "/brand/ritmo-pro-woman.png" : "/brand/ritmo-pro-man.png"} alt="" width={40} height={40} /> {user?.experience === "woman" ? "Ritmo Pro Woman" : "Ritmo Pro Man"}
         </Link>
         <select
           aria-label="Idioma / Language / Idioma"
