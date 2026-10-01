@@ -35,7 +35,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(true);
   acceptedTermsRef.current = acceptedTerms;
   const [resetToken] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get("reset") ?? new URLSearchParams(window.location.search).get("reset") ?? new URLSearchParams(window.location.search).get("token") ?? "");
   const [notice, setNotice] = useState(() => new URLSearchParams(window.location.search).get("passwordChanged") === "1" ? "Senha alterada com sucesso. Entre com sua nova senha." : new URLSearchParams(window.location.search).get("expired") === "1" ? "Sua sessão expirou. Entre novamente para continuar." : "");
