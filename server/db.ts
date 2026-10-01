@@ -1,10 +1,11 @@
-import { and, desc, eq, gt, gte, isNull, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gt, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { postgresConnectionOptions } from "./_core/postgres-connection";
-import { BodyAnalysis, InsertUser, authEmailTokens, authRateLimits, bodyAnalyses, dailyLogs, mercadoPagoWebhookEvents, subscriptionPayments, subscriptionPlans, userSubscriptions, users, wearableActivities, wearableConnections, wearableOauthStates, wearableDailySummaries, weeklyAssessments, workoutPlans, trainingSessions } from "../drizzle/schema";
+import { BodyAnalysis, InsertUser, authEmailTokens, authRateLimits, bodyAnalyses, dailyLogs, mercadoPagoWebhookEvents, subscriptionPayments, subscriptionPlans, userSubscriptions, users, wearableActivities, wearableConnections, wearableOauthStates, wearableDailySummaries, weeklyAssessments, workoutPlans, trainingSessions, trainingSets, fitnessPreferences } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { canClaimWebhookEvent } from "./mercadopago";
+import { preferencesSchema } from "../shared/fitness";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -663,6 +664,17 @@ export async function ingestWearableActivity(input: {
   return rows[0];
 }
 
+export async function getRecentTrainingContext(userId: number, from: string, to: string) {
+  const db = await getDb(); if (!db) return [];
+  const sessions = await db.select().from(trainingSessions).where(and(eq(trainingSessions.userId, userId), gte(trainingSessions.activityDate, from), lte(trainingSessions.activityDate, to))).orderBy(desc(trainingSessions.startedAt)).limit(8);
+  if (!sessions.length) return [];
+  const sets = await db.select().from(trainingSets).where(and(inArray(trainingSets.sessionId, sessions.map(s => s.id)), isNull(trainingSets.voidedAt))).orderBy(trainingSets.id);
+  return sessions.map(session => {
+    const smartwatch = session.smartwatchJson ? JSON.parse(session.smartwatchJson) : null;
+    return { date: session.activityDate, status: session.status, workout: JSON.parse(session.snapshotJson), sets: sets.filter(s => s.sessionId === session.id).slice(0, 12).map(s => ({ exerciseId: s.exerciseId, reps: s.reps, seconds: s.seconds, loadKg: s.loadKg, note: s.note })), note: session.note, smartwatch: smartwatch ? { modality: smartwatch.modality, metrics: smartwatch.metrics } : null };
+  });
+}
+
 async function getCompletedTrainingDates(userId: number, from: string, to: string) {
   const db = await getDb(); if (!db) return [];
   return db.select({ activityDate: trainingSessions.activityDate }).from(trainingSessions).where(and(eq(trainingSessions.userId,userId),eq(trainingSessions.status,"completed"),gte(trainingSessions.activityDate,from),lte(trainingSessions.activityDate,to)));
@@ -677,7 +689,7 @@ export async function getWeeklyActivityAnalysis(userId: number, from: string, to
   const previousEndDate = new Date(`${weekStart}T00:00:00Z`);
   previousEndDate.setUTCDate(previousEndDate.getUTCDate() + (to > today ? elapsedDays - 8 : -1));
   const previousEnd = previousEndDate.toISOString().slice(0, 10);
-  const [allActivities, allSummaries, logs, assessment, assessmentHistory, allPreviousActivities, allPreviousSummaries, previousLogs, sessions, previousSessions] = await Promise.all([
+  const [allActivities, allSummaries, logs, assessment, assessmentHistory, allPreviousActivities, allPreviousSummaries, previousLogs, sessions, previousSessions, preferences] = await Promise.all([
     getWearableActivities(userId, from, to),
     getWearableDailySummaries(userId, from, to),
     getDailyHistory(userId, from, to),
@@ -688,6 +700,7 @@ export async function getWeeklyActivityAnalysis(userId: number, from: string, to
     getDailyHistory(userId, previousStart, previousEnd),
     getCompletedTrainingDates(userId, from, effectiveEnd),
     getCompletedTrainingDates(userId, previousStart, previousEnd),
+    getDb().then(db => db ? db.select().from(fitnessPreferences).where(eq(fitnessPreferences.userId, userId)).limit(1) : []),
   ]);
   const collapseDailySummaries = (rows: Awaited<ReturnType<typeof getWearableDailySummaries>>) => {
     const grouped = new Map<string, typeof rows>();
@@ -726,6 +739,8 @@ export async function getWeeklyActivityAnalysis(userId: number, from: string, to
   const maxHeartRates = providerActivities.map(row => row.maxHeartRate).filter((value): value is number => typeof value === "number");
   const distances = providerActivities.map(row => row.distanceKm == null ? null : Number(row.distanceKm)).filter((value): value is number => Number.isFinite(value));
   const workoutDates = new Set([...logs.filter(log => log.workoutId && log.completedCount > 0).map(log => log.activityDate), ...sessions.map(row => row.activityDate)]);
+  const workoutsCompleted = sessions.length + new Set(logs.filter(log => log.workoutId && log.completedCount > 0 && !sessions.some(s => s.activityDate === log.activityDate)).map(log => log.activityDate)).size;
+  const workoutsTarget = preferencesSchema.parse(preferences[0] ? JSON.parse(preferences[0].dataJson) : {}).workoutsPerWeek;
   const activityDays = new Set(providerActivities.map(row => row.activityDate));
   const activityTypes = Array.from(new Set(providerActivities.map(row => row.activityType).filter((value): value is string => Boolean(value))));
   const recovery = assessment?.recovery ?? logs.find(log => log.recovery)?.recovery ?? null;
@@ -741,7 +756,7 @@ export async function getWeeklyActivityAnalysis(userId: number, from: string, to
   const activeCalories = sumSummary("activityCaloriesKcal");
   const totalCalories = sumSummary("totalCaloriesKcal");
   const previousProviderActivities = previousActivities;
-  const previousWorkoutDates = new Set([...previousLogs.filter(log => log.workoutId && log.completedCount > 0).map(log => log.activityDate), ...previousSessions.map(row => row.activityDate)]);
+  const previousWorkoutsCompleted = previousSessions.length + new Set(previousLogs.filter(log => log.workoutId && log.completedCount > 0 && !previousSessions.some(s => s.activityDate === log.activityDate)).map(log => log.activityDate)).size;
   const previousSummaryTotal = (field: "workoutCaloriesKcal" | "activityCaloriesKcal" | "totalCaloriesKcal" | "durationMinutes" | "steps" | "sleepMinutes") => {
     const values = previousSummaries.map(row => row[field]).filter((value): value is number => typeof value === "number");
     return values.length ? values.reduce((a, b) => a + b, 0) : null;
@@ -752,7 +767,7 @@ export async function getWeeklyActivityAnalysis(userId: number, from: string, to
   const previousDuration = previousSummaryTotal("durationMinutes");
   const previousSteps = previousSummaryTotal("steps");
   return {
-    from, to, workoutsCompleted: workoutDates.size, workoutsTarget: 4,
+    from, to, workoutsCompleted, workoutsTarget,
     caloriesKcal: workoutsCalories ?? manualCalories, workoutCaloriesKcal: workoutsCalories, activityCaloriesKcal: activeCalories, totalCaloriesKcal: totalCalories,
     durationMinutes: sumSummary("durationMinutes") ?? sum("durationMinutes"),
     cardioMinutes: sumSummary("cardioMinutes") ?? sum("cardioMinutes"), steps: sumSummary("steps") ?? sum("steps"), sleepMinutes: sumSummary("sleepMinutes") ?? sum("sleepMinutes"),
@@ -761,8 +776,8 @@ export async function getWeeklyActivityAnalysis(userId: number, from: string, to
     maxHeartRate: summaryMaxHr.length ? Math.max(...summaryMaxHr) : maxHeartRates.length ? Math.max(...maxHeartRates) : null,
     volumeMinutes: sum("durationMinutes"), previousWeeksConsidered: assessmentHistory.filter(row => row.weekStart !== weekStart).length,
     activityCount: summaries.length || providerActivities.length ? summaries.reduce((n, s) => n + (s.activityCount ?? 0), 0) || providerActivities.length : null, activityDays: summaries.length || activityDays.size ? Math.max(activityDays.size, summaries.length) : null, activityTypes, recovery, assessmentAvailable: Boolean(assessment),
-    consistency: { workoutDays: workoutDates.size, workoutTarget: 4, wearableActivityDays: Math.max(activityDays.size, summaries.length) },
-    evolution: { comparison: to > today ? "current week to date versus the same weekdays in the previous calendar week" : "current calendar week versus previous calendar week", previousWeek: { from: previousStart, to: previousEnd, workoutsCompleted: previousWorkoutDates.size, activityDays: Math.max(previousActivityDays.size, previousSummaries.length), workoutCaloriesKcal: previousWorkoutCalories, durationMinutes: previousDuration, steps: previousSteps, sleepMinutes: previousSummaryTotal("sleepMinutes"), totalCaloriesKcal: previousSummaryTotal("totalCaloriesKcal") }, change: { workoutsCompleted: delta(workoutDates.size, previousWorkoutDates.size), activityDays: delta(Math.max(activityDays.size, summaries.length), Math.max(previousActivityDays.size, previousSummaries.length)), workoutCaloriesKcal: delta(workoutsCalories, previousWorkoutCalories), durationMinutes: delta(sumSummary("durationMinutes"), previousDuration), steps: delta(sumSummary("steps"), previousSteps) } },
+    consistency: { workoutDays: workoutDates.size, workoutTarget: workoutsTarget, wearableActivityDays: Math.max(activityDays.size, summaries.length) },
+    evolution: { comparison: to > today ? "current week to date versus the same weekdays in the previous calendar week" : "current calendar week versus previous calendar week", previousWeek: { from: previousStart, to: previousEnd, workoutsCompleted: previousWorkoutsCompleted, activityDays: Math.max(previousActivityDays.size, previousSummaries.length), workoutCaloriesKcal: previousWorkoutCalories, durationMinutes: previousDuration, steps: previousSteps, sleepMinutes: previousSummaryTotal("sleepMinutes"), totalCaloriesKcal: previousSummaryTotal("totalCaloriesKcal") }, change: { workoutsCompleted: delta(workoutsCompleted, previousWorkoutsCompleted), activityDays: delta(Math.max(activityDays.size, summaries.length), Math.max(previousActivityDays.size, previousSummaries.length)), workoutCaloriesKcal: delta(workoutsCalories, previousWorkoutCalories), durationMinutes: delta(sumSummary("durationMinutes"), previousDuration), steps: delta(sumSummary("steps"), previousSteps) } },
     sources: Array.from(new Set([...allSummaries.map(row => row.provider), ...allActivities.filter(row => row.sourceType === "provider_api").map(row => row.provider)])),
     dataAvailable: providerActivities.length > 0 || summaries.length > 0 || logs.length > 0 || sessions.length > 0, wearableDataAvailable: summaries.length > 0 || providerActivities.length > 0,
     metricsSufficient: summaries.length >= 3 || providerActivities.length >= 3, dailySummaries: summaries.map(s => ({ date: s.activityDate, activityCount: s.activityCount, workoutCaloriesKcal: s.workoutCaloriesKcal, activityCaloriesKcal: s.activityCaloriesKcal, totalCaloriesKcal: s.totalCaloriesKcal, steps: s.steps, sleepMinutes: s.sleepMinutes, durationMinutes: s.durationMinutes, distanceKm: s.distanceKm, averageHeartRate: s.averageHeartRate, recoveryScore: s.recoveryScore })),

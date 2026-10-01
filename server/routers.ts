@@ -15,7 +15,7 @@ import { ENV, getJwtSecret } from "./_core/env";
 import { attachMercadoPagoCheckout, createPendingSubscription, createLocalUser, createOAuthUser, createWorkoutPlan, deleteWorkoutPlan, getLatestUserSubscription, getUserByEmail, getUserById, getWorkoutPlans, invalidateUserSessions, saveBodyAnalysis, setUserLastSignedIn, updateSubscriptionByProviderId, updateUserName, updateUserPassword, updateWorkoutPlan, consumeAuthEmailToken, consumeAuthRateLimit, issueAuthEmailToken, markEmailVerified, setPendingUserEmail, updateUserEmail } from "./db";
 import { invokeLLM } from "./_core/llm";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
-import { clearCurrentAssessment, deleteAllUserData, getAssessmentHistory, getBodyAnalysisHistory, getCurrentAssessment, getDailyHistory, getDailyLog, getWeeklyActivityAnalysis, getWearableActivities, getWearableConnections, ingestWearableActivity, resetUserProgress, saveAssessment, saveDailyLog, updateUserProfileImage, upsertWearableConnection } from "./db";
+import { getRecentTrainingContext, clearCurrentAssessment, deleteAllUserData, getAssessmentHistory, getBodyAnalysisHistory, getCurrentAssessment, getDailyHistory, getDailyLog, getWeeklyActivityAnalysis, getWearableActivities, getWearableConnections, ingestWearableActivity, resetUserProgress, saveAssessment, saveDailyLog, updateUserProfileImage, upsertWearableConnection } from "./db";
 import { storageGetSignedUrl, storagePut, storageRemove } from "./storage";
 import { bodyAnalysisResultSchema, decodeBodyImage, parseBodyAnalysisResponse } from "./body-analysis";
 import { beginWearableOAuth, disconnectWearableAccount, syncWearable } from "./wearables";
@@ -402,16 +402,17 @@ export const appRouter = router({
       const today = lisbonDate(); const weekStart = currentWeekStart();
       const fromDate = new Date(`${today}T12:00:00Z`); fromDate.setUTCDate(fromDate.getUTCDate() - 29);
       const from = fromDate.toISOString().slice(0, 10);
-      const [assessment, week, daily, history, bodyHistory, savedPlans] = await Promise.all([
+      const [assessment, week, daily, history, bodyHistory, savedPlans, sessionTraining] = await Promise.all([
         getCurrentAssessment(ctx.user.id, weekStart),
         getWeeklyActivityAnalysis(ctx.user.id, weekStart, today, weekStart),
         getDailyHistory(ctx.user.id, from, today),
         getAssessmentHistory(ctx.user.id, 6),
         getBodyAnalysisHistory(ctx.user.id, 2),
         getWorkoutPlans(ctx.user.id),
+        getRecentTrainingContext(ctx.user.id, from, today),
       ]);
       const body = bodyHistory[0] ? JSON.parse(bodyHistory[0].analysisJson) as unknown : null;
-      const data = { requested: input, currentAssessment: assessment ?? null, weeklyTrainingAndWearableData: week, recentDailyLogs: daily.map(row => ({ date: row.activityDate, workoutId: row.workoutId, completedCount: row.completedCount, cardioMinutes: row.cardioMinutes, recovery: row.recovery, waterLiters: row.waterLiters, mealsNote: row.mealsNote })), previousWeeklyAssessments: history, latestBodyAnalysis: body, priorCustomizations: savedPlans.slice(0, 8).map(plan => ({ name: plan.name, focusGroup: plan.focusGroup, source: plan.source, exercises: JSON.parse(plan.exercisesJson) })) };
+      const data = { requested: input, recentTrainingSessions: sessionTraining, currentAssessment: assessment ?? null, weeklyTrainingAndWearableData: week, recentDailyLogs: daily.map(row => ({ date: row.activityDate, workoutId: row.workoutId, completedCount: row.completedCount, cardioMinutes: row.cardioMinutes, recovery: row.recovery, waterLiters: row.waterLiters, mealsNote: row.mealsNote })), previousWeeklyAssessments: history, latestBodyAnalysis: body, priorCustomizations: savedPlans.slice(0, 8).map(plan => ({ name: plan.name, focusGroup: plan.focusGroup, source: plan.source, exercises: JSON.parse(plan.exercisesJson) })) };
       const response = await invokeLLM({ userId: ctx.user.id, feature: "workout_generation", maxTokens: 1800, response_format: { type: "json_object" }, messages: [
         { role: "system", content: `Crie um treino estruturado em ${input.language}. Use somente exerciseId presentes no catálogo enviado. Considere os dados reais fornecidos; null ou lista vazia significa indisponível, nunca invente desempenho, carga, smartwatch, fadiga ou recuperação. Só preencha loadKg se os dados registrarem carga correspondente; do contrário use null. Respeite objetivo, foco, tempo e disponibilidade; evite recomendar volume alto quando recuperação registrada for baixa. Não faça diagnóstico. Retorne apenas JSON com name (string), objective (string), focusGroup (string), durationMinutes (integer), notes (string), exercises (array de 4 a 12 itens com exerciseId, sets (integer 1-10), reps (string curta), loadKg (number ou null), restSeconds (integer 0-900), note (string ou null)).` },
         { role: "user", content: JSON.stringify({ data, exerciseCatalog }) },
@@ -577,26 +578,32 @@ export const appRouter = router({
     confirmSmartwatchPhoto: protectedProcedure.input(z.object({
       sessionId: z.string().uuid(),
       modality: z.enum(["Esteira", "Bicicleta", "Corrida livre"]),
-      dataUrl: z.string().regex(/^data:image\/(?:jpeg|png|webp);base64,/).max(3_000_000),
+      dataUrl: z.string().regex(/^data:image\/(?:jpeg|png|webp);base64,/).max(3_000_000).optional(),
+      photoKey: z.string().max(255).optional(),
       result: z.object({ activityDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(), activityType: z.string().max(100).nullable(), durationMinutes: z.number().int().min(0).max(100000).nullable(), activeCaloriesKcal: z.number().int().min(0).max(1000000).nullable(), totalCaloriesKcal: z.number().int().min(0).max(1000000).nullable(), averageHeartRate: z.number().int().min(0).max(300).nullable(), maxHeartRate: z.number().int().min(0).max(300).nullable(), distanceKm: z.number().min(0).max(100000).nullable(), steps: z.number().int().min(0).max(500000).nullable(), pace: z.string().max(80).nullable(), speedKmh: z.number().min(0).max(500).nullable(), heartRateZones: z.array(z.string().max(120)).max(8), otherMetrics: z.array(z.string().max(160)).max(8), confidence: z.enum(["low", "medium", "high"]) }),
-    })).mutation(async ({ ctx, input }) => {
+    }).refine(input => Boolean(input.dataUrl) !== Boolean(input.photoKey), "Envie uma foto ou use a foto desta sessão.")).mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Banco indisponível." });
       const [session] = await db.select().from(trainingSessions).where(and(eq(trainingSessions.id, input.sessionId), eq(trainingSessions.userId, ctx.user.id)));
       if (!session) throw new TRPCError({ code: "NOT_FOUND", message: "Sessão não encontrada." });
       if (session.status !== "completed") assertToday(session.activityDate);
 
-      const image = decodeBodyImage(input.dataUrl, 2_000_000);
-      const uploaded = await storagePut(`fitness/${ctx.user.id}/${crypto.randomUUID()}.${image.mimeType === "image/png" ? "png" : image.mimeType === "image/webp" ? "webp" : "jpg"}`, image.data, image.mimeType);
+      let uploaded: { key: string } | null = null;
+      if (input.dataUrl) {
+        const image = decodeBodyImage(input.dataUrl, 2_000_000);
+        uploaded = await storagePut(`fitness/${ctx.user.id}/${crypto.randomUUID()}.${image.mimeType === "image/png" ? "png" : image.mimeType === "image/webp" ? "webp" : "jpg"}`, image.data, image.mimeType);
+      }
+      const photoKey = uploaded?.key ?? input.photoKey!;
       try {
         await db.transaction(async tx => {
           const [current] = await tx.select().from(trainingSessions).where(and(eq(trainingSessions.id, input.sessionId), eq(trainingSessions.userId, ctx.user.id))).for("update");
           if (!current) throw new TRPCError({ code: "NOT_FOUND", message: "Sessão não encontrada." });
           if (current.status !== "completed") assertToday(current.activityDate);
+          if (input.photoKey && (!current.smartwatchJson || JSON.parse(current.smartwatchJson).photoKey !== input.photoKey)) throw new TRPCError({ code: "FORBIDDEN", message: "A foto não pertence a esta sessão." });
           await tx.insert(fitnessRevisions).values({ userId: ctx.user.id, entityId: current.id, kind: "session_smartwatch", previousJson: JSON.stringify(current) });
-          await tx.update(trainingSessions).set({ smartwatchJson: JSON.stringify({ photoKey: uploaded.key, modality: input.modality, metrics: input.result, confirmedByUser: true }), summary: null }).where(eq(trainingSessions.id, current.id));
+          await tx.update(trainingSessions).set({ smartwatchJson: JSON.stringify({ photoKey, modality: input.modality, metrics: input.result, confirmedByUser: true }), summary: null }).where(eq(trainingSessions.id, current.id));
         });
-      } catch (error) { await storageRemove(uploaded.key); throw error; }
+      } catch (error) { if (uploaded) await storageRemove(uploaded.key); throw error; }
       return { success: true as const };
 
     }),

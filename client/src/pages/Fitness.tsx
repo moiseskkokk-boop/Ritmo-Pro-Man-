@@ -1,4 +1,4 @@
-import SessionSmartwatch from "./Smartwatch";
+import SessionSmartwatch, { smartwatchMetricLabels } from "./Smartwatch";
 import { localizeExercise } from "@shared/exercise-translations";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../server/routers";
@@ -145,6 +145,8 @@ function Training({
       : data.nextSuggested
   );
   const [note, setNote] = useState("");
+  const [waterLiters, setWaterLiters] = useState("");
+  const [cardioMinutes, setCardioMinutes] = useState("");
   const [date, setDate] = useState(() => data.sessions.find(s => s.id === new URLSearchParams(window.location.search).get("session"))?.activityDate ?? data.today);
   const [activeId, setActiveId] = useState<string | null>(() => new URLSearchParams(window.location.search).get("session") ?? null);
   const [editing, setEditing] = useState(() => Boolean(new URLSearchParams(window.location.search).get("session")));
@@ -152,12 +154,11 @@ function Training({
   const selectedSession = trpc.fitness.session.useQuery({ sessionId: activeId ?? "" }, { enabled: !!activeId && activeId !== "new" });
   const session = activeId ? data.sessions.find(s => s.id === activeId) ?? selectedSession.data : daySessions.find(s => s.status === "in_progress");
   useEffect(() => { if (session && activeId && activeId !== "new") setDate(session.activityDate); }, [session?.id, session?.activityDate, activeId]);
-  useEffect(() => { setNote(session?.note ?? ""); }, [session?.id, session?.note]);
+  useEffect(() => { setNote(session?.note ?? ""); setWaterLiters(session?.waterLiters ?? ""); setCardioMinutes(session?.cardioMinutes == null ? "" : String(session.cardioMinutes)); }, [session?.id, session?.note, session?.waterLiters, session?.cardioMinutes]);
   const summarize = trpc.fitness.summarize.useMutation({ onSuccess: refresh });
-  const preferences = trpc.fitness.preferences.useMutation({ onSuccess: refresh });
   const start = trpc.fitness.start.useMutation({ onSuccess: row => { setActiveId(row.id); setEditing(row.status === "completed"); refresh(); } });
   const finish = trpc.fitness.finish.useMutation({
-    onSuccess: (_result, input) => { setEditing(false); refresh(); summarize.mutate({ sessionId: input.sessionId }); },
+    onSuccess: (_result, input) => { setActiveId(input.sessionId); setEditing(false); refresh(); summarize.mutate({ sessionId: input.sessionId }); },
   });
   const custom = data.plans.find(p => `plan:${p.id}` === selection);
   const preview: TrainingSnapshot = custom
@@ -174,6 +175,10 @@ function Training({
   const plan = session?.snapshot ?? preview;
   const total = plan.exercises.reduce((sum, e) => sum + e.sets, 0);
   const readOnly = date !== data.today && session?.status !== "completed";
+  if (activeId && activeId !== "new" && !session) return <section className={panel}>
+    <p role={selectedSession.isLoading ? "status" : "alert"}>{selectedSession.isLoading ? c.loading : selectedSession.error?.message ?? "Sessão não encontrada."}</p>
+    <button onClick={() => { setActiveId("new"); setDate(data.today); setEditing(false); }}>Voltar ao treino de hoje</button>
+  </section>;
   return (
     <>
       <section className={panel}>
@@ -191,8 +196,6 @@ function Training({
           />
         </label>
         <p>{date === data.today ? c.todayOnly : "Sessões concluídas podem ser corrigidas; novos registros somente hoje."}</p>
-        <label>Treinos por semana<select value={data.preferences.workoutsPerWeek} disabled={preferences.isPending} onChange={e => preferences.mutate({ ...data.preferences, workoutsPerWeek: Number(e.target.value) })}>{[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n}</option>)}</select></label>
-        {preferences.error && <p role="alert">{preferences.error.message}</p>}
         <div className="session-cards">{daySessions.map(row => <article key={row.id} className="fitness-log">
           <p>{row.activityDate} · {new Date(row.startedAt).toLocaleTimeString()} · {row.status === "completed" ? c.finished : c.inProgress}</p>
           <h2>{row.snapshot.name}</h2><p>{row.sets.length} {c.confirmedSets} · {row.metrics.repetitions ?? c.unknown} {c.reps}</p>
@@ -265,6 +268,7 @@ function Training({
           >
             <div className="fitness-exercise">
               <img
+                className={["B08","C06","C08","D01","D07","D08"].includes(e.exerciseId) ? "exercise-color-match" : undefined}
                 src={originalPrescriptions[e.exerciseId].image}
                 alt={localizeExercise(
                   exerciseById[e.exerciseId].name,
@@ -289,7 +293,7 @@ function Training({
             {session ? (
               Array.from({ length: e.sets }, (_, setIndex) => (
                 <SetInput
-                  key={setIndex}
+                  key={`${session.id}:${index}:${setIndex}`}
                   sessionId={session.id}
                   exerciseIndex={index}
                   setIndex={setIndex}
@@ -314,7 +318,7 @@ function Training({
           <p>{c.finished}</p>
           {session.note && <p><strong>{c.sessionNote}:</strong> {session.note}</p>}
           <button className="session-correct" onClick={() => setEditing(!editing)}>{editing ? "Fechar detalhes" : "Abrir / Corrigir"}</button>
-          {session.smartwatch && <><h3>{session.smartwatch.modality}</h3><PrivatePhoto photoKey={session.smartwatch.photoKey} c={c} /><div>{Object.entries(session.smartwatch.metrics).filter(([, value]) => value !== null).map(([key, value]) => <p key={key}>{key}: {Array.isArray(value) ? value.join(" · ") : String(value)}</p>)}</div></>}
+          {session.smartwatch && <><h3>{session.smartwatch.modality}</h3><PrivatePhoto photoKey={session.smartwatch.photoKey} c={c} /><div>{Object.entries(session.smartwatch.metrics).filter(([, value]) => value !== null).map(([key, value]) => <p key={key}>{smartwatchMetricLabels[key] ?? (key === "confidence" ? "Confiança" : key)}: {Array.isArray(value) ? value.join(" · ") : String(value)}</p>)}</div></>}
           {session.summary && <p className="fitness-answer">{session.summary}</p>}
           <button disabled={summarize.isPending} onClick={() => summarize.mutate({ sessionId: session.id })}>{summarize.isPending ? "Gerando resumo…" : session.summary ? "Atualizar resumo com IA" : "Gerar resumo com IA"}</button>
           {summarize.error && <p role="alert">{summarize.error.message}</p>}
@@ -345,11 +349,12 @@ function Training({
               onChange={e => setNote(e.target.value)}
             />
           </label>
-          <SessionSmartwatch key={session.id} sessionId={session.id} language={language} refresh={refresh} />
+          <div className="fitness-grid session-daily-metrics"><label>Quantos litros de água bebeu hoje?<input type="number" min="0" max="20" step="0.1" value={waterLiters} onChange={e => setWaterLiters(e.target.value)} /></label><label>Cardio <small>Meta: 20 minutos de esteira</small><input aria-label="Quantos minutos de cardio fez?" type="number" min="0" max="1440" value={cardioMinutes} onChange={e => setCardioMinutes(e.target.value)} placeholder="Quantos minutos de cardio fez?" /></label></div>
+          <SessionSmartwatch key={session.id} sessionId={session.id} language={language} refresh={refresh} existing={session.smartwatch} />
           <button
             disabled={finish.isPending || !session.sets.length}
             onClick={() =>
-              finish.mutate({ sessionId: session.id, note, confirmed: true })
+              finish.mutate({ sessionId: session.id, note, waterLiters: waterLiters || null, cardioMinutes: cardioMinutes === "" ? null : Number(cardioMinutes), confirmed: true })
             }
           >
             {session.status === "completed" ? "Salvar correções" : c.finish}
@@ -1092,13 +1097,6 @@ function Dashboard({
   language: Language;
 }) {
   const session = data.sessions.find(s => s.activityDate === data.today);
-  const todayEntries = data.entries.filter(e => e.activityDate === data.today);
-  const water = todayEntries.reduce(
-    (sum, e) => sum + (e.data.kind === "water" ? e.data.amountMl : 0),
-    0
-  );
-  const manual = todayEntries.filter(e => e.kind === "cardio");
-  const wearable = data.activities.filter(a => a.activityDate === data.today);
   const lastWeight = data.measurements.find(m => m.data.weightKg !== null);
   return (
     <>
@@ -1129,20 +1127,14 @@ function Dashboard({
         </section>
         <section className={panel}>
           <h2>{c.water}</h2>
-          <p>
-            {water} / {data.preferences.waterGoalMl} ml
-          </p>
-          <progress max={data.preferences.waterGoalMl} value={water} />
-          <Link href="/alimentacao">{c.addRecord} →</Link>
+          <p>{session?.waterLiters ? `${session.waterLiters} L` : c.empty}</p>
+          <Link href="/treino">{c.training} →</Link>
         </section>
         <section className={panel}>
           <h2>{c.cardio}</h2>
-          <p>
-            {manual.length} {c.manualRecords} · {wearable.length}{" "}
-            {c.importedRecords}
-          </p>
-          <p>{c.noDoubleCounting}</p>
-          <Link href="/alimentacao">{c.addRecord} →</Link>
+          <p>Meta: 20 minutos de esteira</p>
+          <p>{session?.cardioMinutes == null ? c.empty : `${session.cardioMinutes} min realizados`}</p>
+          <Link href="/treino">{c.training} →</Link>
         </section>
         <section className={panel}>
           <h2>{c.body}</h2>
@@ -1220,7 +1212,6 @@ export default function Fitness({
             ["/dashboard", c.dashboard],
             ["/treino", c.training],
             ["/treinos", c.library],
-            ["/alimentacao", c.wellness],
             ["/corpo", c.body],
             ["/historico", c.history],
             ["/coach", "AI Coach"],

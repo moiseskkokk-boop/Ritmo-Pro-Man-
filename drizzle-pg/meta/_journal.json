@@ -15,6 +15,13 @@
       "when": 1790870000000,
       "tag": "0001_sessions_ai_week",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790873000000,
+      "tag": "0002_session_water_cardio",
+      "breakpoints": true
     }
   ]
 }

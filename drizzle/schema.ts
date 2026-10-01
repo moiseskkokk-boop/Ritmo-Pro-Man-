@@ -54,7 +54,7 @@ export type InsertUser = typeof users.$inferInsert;
 export const trainingSessions = pgTable("training_sessions", {
   id: varchar("id", { length: 36 }).primaryKey(), userId: integer("userId").notNull(), activityDate: varchar("activityDate", { length: 10 }).notNull(),
   status: varchar("status", { length: 32, enum: ["in_progress", "completed"] }).default("in_progress").notNull(),
-  snapshotJson: text("snapshotJson").notNull(), note: text("note"), startedAt: timestamp("startedAt").defaultNow().notNull(), completedAt: timestamp("completedAt"), smartwatchJson: text("smartwatchJson"), summary: text("summary"),
+  snapshotJson: text("snapshotJson").notNull(), note: text("note"), startedAt: timestamp("startedAt").defaultNow().notNull(), completedAt: timestamp("completedAt"), smartwatchJson: text("smartwatchJson"), summary: text("summary"), cardioMinutes: integer("cardioMinutes"), waterLiters: varchar("waterLiters", { length: 10 }),
 }, table => ({ userDate: index("training_sessions_user_date").on(table.userId, table.activityDate) }));
 export const trainingSets = pgTable("training_sets", {
   id: varchar("id", { length: 80 }).primaryKey(), sessionId: varchar("sessionId", { length: 36 }).notNull(), exerciseIndex: integer("exerciseIndex").notNull(), setIndex: integer("setIndex").notNull(),

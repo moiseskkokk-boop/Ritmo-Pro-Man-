@@ -435,3 +435,7 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible { 
 .session-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin:18px 0; }
 .session-cards .fitness-log { margin:0; padding:16px; }
 .photos-section .photo-grid { grid-template-columns:minmax(0,360px); justify-content:center; }
+
+/* Match the six legacy exercise illustrations to the color intensity of the current library. */
+.exercise-color-match { filter: saturate(1.28) contrast(1.06) brightness(1.03); }
+.session-daily-metrics small { display:block; margin:.25rem 0 .5rem; opacity:.72; font-weight:500; }

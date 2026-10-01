@@ -11,6 +11,7 @@ vi.mock("./db", async original => ({
   getAssessmentHistory: async () => [],
   getBodyAnalysisHistory: async () => [],
   getWorkoutPlans: async () => [],
+  getRecentTrainingContext: async () => [],
 }));
 import { appRouter } from "./routers";
 import { ENV } from "./_core/env";

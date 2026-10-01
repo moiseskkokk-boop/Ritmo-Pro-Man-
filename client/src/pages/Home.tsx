@@ -1555,7 +1555,7 @@ type Day5Recommendation = {
   historyWeeksConsidered: number;
   exercises?: { exerciseId: ExerciseId; sets: number; reps: string; loadKg: number | null; restSeconds: number; note?: string | null; name: string; prescription: string }[];
 };
-type BodyPhotoSlot = "front" | "back" | "right" | "left";
+type BodyPhotoSlot = "front";
 
 export type HomeView = "training" | "analysis";
 
@@ -1583,11 +1583,8 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
   );
   const [photos, setPhotos] = useState<Record<string, string | null>>({
     front: null,
-    back: null,
-    right: null,
-    left: null,
   });
-  const [photoFiles, setPhotoFiles] = useState<Record<BodyPhotoSlot, string | null>>({ front: null, back: null, right: null, left: null });
+  const [photoFiles, setPhotoFiles] = useState<Record<BodyPhotoSlot, string | null>>({ front: null });
   const [bodyNotice, setBodyNotice] = useState("");
   const [installOpen, setInstallOpen] = useState(false);
   const [installAvailable, setInstallAvailable] = useState(false);
@@ -1752,7 +1749,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
     onSuccess: () => {
       localStorage.removeItem("ritmo-mf-consent");
       localStorage.removeItem("ritmo-mf-language");
-      setPhotos({ front: null, back: null, right: null, left: null });
+      setPhotos({ front: null });
       setCompleted({});
       setAssessmentDraft(emptyAssessment);
       window.setTimeout(() => logout(), 800);
@@ -1760,7 +1757,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
   });
   const resetProgressMutation = trpc.progress.resetMyProgress.useMutation({
     onSuccess: () => {
-      setPhotos({ front: null, back: null, right: null, left: null });
+      setPhotos({ front: null });
       setCompleted({});
       setSelectedWorkoutIds({});
       setSelectedId("");
@@ -1819,8 +1816,8 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
   const analyzeBodyMutation = trpc.progress.analyzeBody.useMutation({
     onSuccess: () => {
       setBodyNotice(language === "en" ? "Monthly analysis saved." : language === "es" ? "Análisis mensual guardado." : "Análise mensal guardada.");
-      setPhotoFiles({ front: null, back: null, right: null, left: null });
-      setPhotos({ front: null, back: null, right: null, left: null });
+      setPhotoFiles({ front: null });
+      setPhotos({ front: null });
       bodyAnalysisHistory.refetch();
     },
     onError: error => setBodyNotice(error.message),
@@ -2141,7 +2138,6 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
           <a href="/perfil">{c.profile}</a>
           <a href="/treino">{c.training}</a>
           <a href="/treinos">Meus treinos</a>
-          <a href="/alimentacao">Alimentação e água</a>
           <a href="/avaliacao">Avaliação</a>
           <a href="/analise">{c.bodyAnalysis}</a>
           <a href="/assinatura">Assinatura</a>

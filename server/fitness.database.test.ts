@@ -36,6 +36,7 @@ beforeAll(async () => {
   // Apply migration over an existing session to verify data preservation.
   await pg.query(`INSERT INTO training_sessions (id,"userId","activityDate","snapshotJson") VALUES ($1,99,$2,$3)`, ["12345678-1234-4234-8234-123456789abc", today, JSON.stringify(originalSnapshot("A"))]);
   await pg.exec(readFileSync("drizzle-pg/0001_sessions_ai_week.sql", "utf8"));
+  await pg.exec(readFileSync("drizzle-pg/0002_session_water_cardio.sql", "utf8"));
   expect((await pg.query(`SELECT * FROM training_sessions WHERE "userId"=99`)).rows).toHaveLength(1);
 }, 30000);
 afterAll(async () => { await pg.close(); process.env.DATABASE_URL = originalUrl; ENV.geminiApiKey = originalKey; });
@@ -43,18 +44,22 @@ beforeEach(async () => {
   vi.clearAllMocks();
   await pg.exec(`TRUNCATE training_sessions, training_sets, fitness_revisions, fitness_preferences, auth_rate_limits, workout_plans, workout_ai_weeks, body_analyses, user_subscriptions`);
   await state.database.insert(userSubscriptions).values({ userId: 42, planCode: "test", status: "active", externalReference: "test-42", amount: "1", currency: "EUR", currentPeriodEnd: new Date(Date.now() + 86400000) });
-  state.put.mockImplementation(async (key: string) => ({ key }));
+  state.put.mockImplementation(async (key: string) => ({ key: key.replace(/\.(jpg|png|webp)$/, "_ab12cd34.$1") }));
 });
 async function start(id: "A" | "B" = "A") { return a().fitness.start({ activityDate: today, originalId: id }); }
 async function confirm(sessionId: string, reps = 10) { return a().fitness.confirmSet({ sessionId, exerciseIndex: 0, setIndex: 0, reps, seconds: null, loadKg: 25, note: "série real", confirmed: true }); }
 
 describe("fitness on isolated PostgreSQL (PGlite)", () => {
   it("starts and completes independent same-date sessions, queries by ID and keeps all in overview", async () => {
-    const first = await start(); await confirm(first.id); await a().fitness.finish({ sessionId: first.id, note: "Bom treino", confirmed: true });
+    const first = await start(); await confirm(first.id); await a().fitness.finish({ sessionId: first.id, note: "Bom treino", waterLiters: "2.5", cardioMinutes: 27, confirmed: true });
     const second = await start("B"); await confirm(second.id, 12); await a().fitness.finish({ sessionId: second.id, note: "Outra sessão", confirmed: true });
     expect(first.id).not.toBe(second.id);
+    await a().fitness.preferences({ workoutsPerWeek: 7 });
+    const weekStart = (await a().progress.today()).weekStart;
+    expect(await a().progress.weeklyActivityAnalysis({ from: weekStart, to: today, weekStart })).toMatchObject({ workoutsCompleted: 2, workoutsTarget: 7 });
     const overview = await a().fitness.overview();
     expect(overview.sessions.map(s => s.id)).toEqual(expect.arrayContaining([first.id, second.id]));
+    expect(await a().fitness.session({ sessionId: first.id })).toMatchObject({ waterLiters: "2.5", cardioMinutes: 27 });
     expect((await a().fitness.session({ sessionId: first.id }))?.sets[0].reps).toBe(10);
     expect((await a().fitness.session({ sessionId: second.id }))?.sets[0].reps).toBe(12);
     expect(await b().fitness.session({ sessionId: first.id })).toBeNull();
@@ -91,7 +96,15 @@ describe("fitness on isolated PostgreSQL (PGlite)", () => {
     const saved = rows.find(s => s.id === first.id)!;
     expect(saved.smartwatch).toMatchObject({ modality: "Bicicleta", metrics: { averageHeartRate: 115, distanceKm: null } });
     expect(saved.smartwatch?.photoKey).toMatch(/^fitness\/42\//);
+    await expect(a().fitness.photo({ key: saved.smartwatch!.photoKey })).resolves.toMatchObject({ url: expect.stringContaining(saved.smartwatch!.photoKey) });
     expect(saved.smartwatchJson).not.toContain("base64");
+    await expect(a().fitness.photo({ key: saved.smartwatch!.photoKey })).resolves.toHaveProperty("url");
+    await expect(b().fitness.photo({ key: saved.smartwatch!.photoKey })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    state.put.mockClear();
+    await a().progress.confirmSmartwatchPhoto({ sessionId: first.id, modality: "Corrida livre", photoKey: saved.smartwatch!.photoKey, result: { ...metrics, averageHeartRate: 110 } });
+    expect(state.put).not.toHaveBeenCalled();
+    expect((await a().fitness.overview()).sessions.find(s => s.id === first.id)?.smartwatch).toMatchObject({ modality: "Corrida livre", metrics: { averageHeartRate: 110 } });
+    await expect(a().progress.confirmSmartwatchPhoto({ sessionId: second.id, modality: "Esteira", photoKey: saved.smartwatch!.photoKey, result: metrics })).rejects.toMatchObject({ code: "FORBIDDEN" });
     expect(rows.find(s => s.id === second.id)?.smartwatch).toBeNull();
     await expect(b().progress.confirmSmartwatchPhoto({ sessionId: first.id, modality: "Esteira", dataUrl: photo, result: metrics })).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
@@ -115,6 +128,26 @@ describe("AI workout weekly limit", () => {
     expect((await state.database.select().from(workoutAiWeeks))[0].weekStart).toBe("2026-09-28");
     await reserveWorkoutWeek(43, now); await reserveWorkoutWeek(42, new Date("2026-10-04T23:30:00Z"));
     expect(await state.database.select().from(workoutAiWeeks)).toHaveLength(3);
+  });
+  it("releases only its own reservation, including after a replacement succeeds", async () => {
+    const now = new Date("2026-09-28T12:00:00Z");
+    const release = await reserveWorkoutWeek(42, now);
+    await release();
+    await reserveWorkoutWeek(42, now);
+    await release();
+    expect(await state.database.select().from(workoutAiWeeks)).toHaveLength(1);
+    await expect(reserveWorkoutWeek(42, now)).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
+  });
+  it("supplies actual sessions and confirmed watch metrics to the AI draft without private photo keys", async () => {
+    const row = await start(); await confirm(row.id, 14);
+    await a().progress.confirmSmartwatchPhoto({ sessionId: row.id, modality: "Corrida livre", dataUrl: photo, result: metrics });
+    const draft = { name: "Treino IA", objective: "Força", focusGroup: "Peito", durationMinutes: 45, notes: "", exercises: originalSnapshot("A").exercises };
+    state.llm.mockResolvedValue(answer(draft));
+    await a().workouts.generateWithAI({ objective: "Força", focusGroup: "Peito", durationMinutes: 45, availabilityDays: 7, language: "pt" });
+    const payload = JSON.parse(state.llm.mock.calls[0][0].messages[1].content);
+    expect(payload.data.recentTrainingSessions[0].sets[0].reps).toBe(14);
+    expect(payload.data.recentTrainingSessions[0].smartwatch).toMatchObject({ modality: "Corrida livre", metrics: { averageHeartRate: 120 } });
+    expect(JSON.stringify(payload.data.recentTrainingSessions)).not.toContain("photoKey");
   });
   it("base sessions and manual/customized plans do not consume quota; server blocks the second generation even without saving a draft", async () => {
     const draft = { name: "Treino IA", objective: "Força", focusGroup: "Peito", durationMinutes: 45, notes: "", exercises: originalSnapshot("A").exercises };

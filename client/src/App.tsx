@@ -41,7 +41,7 @@ function Router() {
         <Route path={"/dashboard"}>{() => <Fitness view="dashboard" />}</Route>
         <Route path={"/treinos"} component={WorkoutsLibrary} />
         <Route path={"/treinos/criar"} component={WorkoutBuilder} />
-        <Route path={"/alimentacao"}>{() => <Fitness view="wellness" />}</Route>
+        <Route path={"/alimentacao"} component={TrainingPage} />
         <Route path={"/corpo"}>{() => <Fitness view="body" />}</Route>
         <Route path={"/historico"}>{() => <Fitness view="history" />}</Route>
         <Route path={"/coach"}>{() => <Fitness view="coach" />}</Route>

@@ -1,13 +1,12 @@
 import { Link } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
-import { Activity, Apple, ArrowUpRight, CalendarCheck, Droplets, Dumbbell, HeartPulse, UserRound } from "lucide-react";
+import { Activity, ArrowUpRight, CalendarCheck, Droplets, Dumbbell, HeartPulse, UserRound } from "lucide-react";
 
 const links = [
   { href: "/treino", title: "Treino", text: "Sua rotina de 1 a 7 treinos por semana", icon: Dumbbell },
   { href: "/treinos", title: "Meus treinos", text: "Criar, editar e personalizar", icon: Activity },
   { href: "/analise", title: "Análise corporal", text: "Foto frontal e histórico", icon: HeartPulse },
-  { href: "/alimentacao", title: "Alimentação e água", text: "Registre seus hábitos do dia", icon: Apple },
   { href: "/avaliacao", title: "Avaliação semanal", text: "Revisar objetivo e recuperação", icon: CalendarCheck },
   { href: "/assinatura", title: "Assinatura", text: "Plano e pagamentos", icon: ArrowUpRight },
   { href: "/perfil", title: "Perfil", text: "Dados e preferências da conta", icon: UserRound },
