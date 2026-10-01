@@ -2625,47 +2625,26 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
                   <div className="male-smartwatch-panel">
                     <div className="male-smartwatch-top">
                       <div>
-                        <span className="smartwatch-kicker">{d.realActivity}</span>
-                        <h3><Watch size={22} /> {d.connectWatch}</h3>
-                        <p>{d.officialOnly}</p>
+                        <span className="smartwatch-kicker">{language === "en" ? "/ SMARTWATCH DATA" : language === "es" ? "/ DATOS DEL SMARTWATCH" : "/ DADOS DO SMARTWATCH"}</span>
+                        <h3><Watch size={22} /> {language === "en" ? "Smartwatch photo" : language === "es" ? "Foto del smartwatch" : "Foto do smartwatch"}</h3>
+                        <p>{language === "en" ? "Upload the workout summary shown on your watch or health app." : language === "es" ? "Sube el resumen del entrenamiento mostrado en tu reloj o app de salud." : "Envie o resumo do treino mostrado no relógio ou app de saúde."}</p>
                       </div>
-                      <span className="smartwatch-privacy"><ShieldCheck size={14} /> {d.privateAccount}</span>
+                      <span className="smartwatch-privacy"><ShieldCheck size={14} /> {language === "en" ? "Confirm before saving" : language === "es" ? "Confirma antes de guardar" : "Confirme antes de salvar"}</span>
                     </div>
 
                     <div className="smartwatch-link-grid">
-                      <label className="smartwatch-select-label">
-                        <span>{d.chooseDevice}</span>
-                        <select value={selectedProvider} onChange={event => setSelectedProvider(event.target.value as DeviceProvider)} aria-label={d.chooseDevice}>
-                          {deviceProviders.map(provider => <option key={provider} value={provider}>{d.providers[provider]}</option>)}
-                        </select>
-                      </label>
-                      <button className="outline-btn smartwatch-connect" disabled={requestWearableConnectionMutation.isPending} onClick={requestConnection}>
-                        <Cable size={16} />
-                        {requestWearableConnectionMutation.isPending ? d.syncing : selectedConnection?.status === "connected" ? d.linked : d.connect}
+                      <button className="dark-btn smartwatch-import" onClick={() => window.location.assign("/smartwatch") }>
+                        <FileUp size={16} />
+                        {language === "en" ? "Send smartwatch photo" : language === "es" ? "Enviar foto del smartwatch" : "Enviar foto do smartwatch"}
                       </button>
-                      <button className="dark-btn smartwatch-sync" disabled={requestWearableSyncMutation.isPending} onClick={handleSyncClick}>
-                        {activeSyncProvider === selectedProvider && requestWearableSyncMutation.isPending ? d.syncing : d.sync}
-                      </button>
-                      {selectedConnection?.status === "connected" && <button className="outline-btn" disabled={disconnectWearableMutation.isPending} onClick={() => disconnectWearableMutation.mutate({ provider: selectedProvider })}>{d.disconnect}</button>}
-                      <button className="outline-btn smartwatch-import" disabled={isImporting} onClick={() => importInputRef.current?.click()}>
-                        <FileUp size={16} /> {isImporting ? d.importing : d.importFile}
-                      </button>
-                      <input ref={importInputRef} className="visually-hidden" type="file" accept=".csv,.json,text/csv,application/json" onChange={importActivities} />
                     </div>
-                    <p className="smartwatch-disclaimer">{d.manualDisclaimer}</p>
-
-                    <div className="smartwatch-status-row">
-                      <span className={`status-chip ${selectedConnection?.status === "connected" ? "ready" : ""}`}>
-                        {selectedConnection?.status === "connected" ? <CheckCircle2 size={14} /> : <Clock3 size={14} />}
-                        {selectedConnection?.status === "connected" ? selectedConnection.lastSyncStatus === "error" ? d.syncError : selectedConnection.lastSyncStatus === "syncing" ? d.syncing : selectedConnection.lastSyncStatus === "synced" ? d.synced : d.connectedUnsynced : selectedConnection?.status === "disconnected" ? d.disconnected : selectedProvider === "apple_health" || selectedProvider === "health_connect" ? d.nativeBridge : d.authorization}
-                      </span>
-                      <strong>{d.providers[selectedProvider]}</strong>
-                      <small>{selectedConnection?.lastSyncError || (selectedConnection?.lastSyncedAt ? `${d.lastSync}: ${new Date(selectedConnection.lastSyncedAt).toLocaleString(d.locale)}` : d.requirements[selectedProvider])}</small>
-                      <span>• {d.accountOnly}</span>
-                    </div>
-                    {weeklyActivityAnalysis.data?.sources?.length ? <small className="smartwatch-source-list">{d.syncedSources}: {weeklyActivityAnalysis.data.sources.map(source => d.providers[source as DeviceProvider] ?? source).join(", ")}</small> : null}
-
-                    {deviceNotice && <p className="smartwatch-notice" role="status" aria-live="polite">{deviceNotice}</p>}
+                    <p className="smartwatch-disclaimer">
+                      {language === "en"
+                        ? "Send a photo or screenshot. Gemini reads the visible metrics, you confirm the values, and only then are they saved."
+                        : language === "es"
+                          ? "Envía una foto o captura. Gemini lee las métricas visibles, tú confirmas los valores y solo entonces se guardan."
+                          : "Envie uma foto ou screenshot. O Gemini lê as métricas visíveis, você confirma os valores e só então elas são salvas."}
+                    </p>
 
                     <div className="smartwatch-metrics">
                       {[
@@ -2683,15 +2662,6 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
                         </div>
                       ))}
                     </div>
-
-                    <button className="outline-btn" disabled={analyzeWeeklyWearableMutation.isPending} onClick={handleWeeklyWearableAnalysis}>
-                      <Sparkles size={16} /> {analyzeWeeklyWearableMutation.isPending ? d.syncing : d.analyzeAI}
-                    </button>
-                    {weeklyWearableInsight && <div className="smartwatch-notice" role="status">
-                      <strong>{weeklyWearableInsight.sufficient ? d.weeklyAnalysis : d.insufficient}</strong>
-                      <p>{weeklyWearableInsight.summary}</p>
-                      {weeklyWearableInsight.recommendations.map((recommendation, index) => <p key={`${index}-${recommendation}`}>• {recommendation}</p>)}
-                    </div>}
 
                     <div className="smartwatch-history-heading">
                       <div><span className="smartwatch-kicker">{d.weekHistory}</span><h4>{d.dailyActivity}</h4></div>
@@ -2726,7 +2696,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
                       <div><span>{d.activityDays}</span><strong>{weeklyActivityAnalysis.data?.activityDays ?? d.noValue}</strong></div>
                     </div>
 
-                    <p className="smartwatch-disclaimer">{d.unavailable} {d.explanation}</p>
+                    <p className="smartwatch-disclaimer">{d.explanation}</p>
                   </div>
                 </>
               )}

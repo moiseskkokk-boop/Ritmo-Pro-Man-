@@ -47,29 +47,29 @@ async function reserveBudget(usageDate: string, userId: number, tokens: number) 
   const db = await getDb(); if (!db) throw new Error("Database required for AI budget");
   if (!Number.isSafeInteger(userId) || userId <= 0) throw new Error("Authenticated AI user required");
   await db.transaction(async tx => {
-    for (const id of [0, userId]) await tx.execute(sql`INSERT IGNORE INTO gemini_usage_daily (usageDate,userId,feature) VALUES (${usageDate},${id},'__budget__')`);
-    const [globalRows] = await tx.execute(sql`SELECT totalTokens FROM gemini_usage_daily WHERE usageDate=${usageDate} AND userId=0 AND feature='__budget__' FOR UPDATE`) as any;
-    const [userRows] = await tx.execute(sql`SELECT totalTokens FROM gemini_usage_daily WHERE usageDate=${usageDate} AND userId=${userId} AND feature='__budget__' FOR UPDATE`) as any;
+    for (const id of [0, userId]) await tx.execute(sql`INSERT INTO gemini_usage_daily ("usageDate","userId",feature) VALUES (${usageDate},${id},'__budget__') ON CONFLICT ("usageDate","userId",feature) DO NOTHING`);
+    const [globalRows] = await tx.execute(sql`SELECT "totalTokens" FROM gemini_usage_daily WHERE "usageDate"=${usageDate} AND "userId"=0 AND feature='__budget__' FOR UPDATE`) as any;
+    const [userRows] = await tx.execute(sql`SELECT "totalTokens" FROM gemini_usage_daily WHERE "usageDate"=${usageDate} AND "userId"=${userId} AND feature='__budget__' FOR UPDATE`) as any;
     // Include usage written before budget reservations were introduced.
-    const [legacyGlobal] = await tx.execute(sql`SELECT COALESCE(SUM(totalTokens),0) AS total FROM gemini_usage_daily WHERE usageDate=${usageDate} AND feature <> '__budget__'`) as any;
-    const [legacyUser] = await tx.execute(sql`SELECT COALESCE(SUM(totalTokens),0) AS total FROM gemini_usage_daily WHERE usageDate=${usageDate} AND userId=${userId} AND feature <> '__budget__'`) as any;
+    const [legacyGlobal] = await tx.execute(sql`SELECT COALESCE(SUM("totalTokens"),0) AS total FROM gemini_usage_daily WHERE "usageDate"=${usageDate} AND feature <> '__budget__'`) as any;
+    const [legacyUser] = await tx.execute(sql`SELECT COALESCE(SUM("totalTokens"),0) AS total FROM gemini_usage_daily WHERE "usageDate"=${usageDate} AND "userId"=${userId} AND feature <> '__budget__'`) as any;
     const globalTotal = Math.max(Number(globalRows[0].totalTokens), Number(legacyGlobal[0].total));
     const userTotal = Math.max(Number(userRows[0].totalTokens), Number(legacyUser[0].total));
     if (globalTotal + tokens > ENV.geminiDailyTokenLimit || userTotal + tokens > ENV.geminiUserDailyTokenLimit) throw new Error("Daily AI capacity reached");
-    await tx.execute(sql`UPDATE gemini_usage_daily SET totalTokens=${globalTotal + tokens},calls=calls+1 WHERE usageDate=${usageDate} AND userId=0 AND feature='__budget__'`);
-    await tx.execute(sql`UPDATE gemini_usage_daily SET totalTokens=${userTotal + tokens},calls=calls+1 WHERE usageDate=${usageDate} AND userId=${userId} AND feature='__budget__'`);
+    await tx.execute(sql`UPDATE gemini_usage_daily SET "totalTokens"=${globalTotal + tokens},calls=calls+1 WHERE "usageDate"=${usageDate} AND "userId"=0 AND feature='__budget__'`);
+    await tx.execute(sql`UPDATE gemini_usage_daily SET "totalTokens"=${userTotal + tokens},calls=calls+1 WHERE "usageDate"=${usageDate} AND "userId"=${userId} AND feature='__budget__'`);
   });
 }
 async function settleBudget(usageDate: string, userId: number, reserved: number, actual: number) {
   const db = await getDb(); if (!db) throw new Error("Database required for AI budget");
   await db.transaction(async tx => {
-    for (const id of [0, userId]) await tx.execute(sql`UPDATE gemini_usage_daily SET totalTokens=GREATEST(0,totalTokens-${reserved}+${actual}) WHERE usageDate=${usageDate} AND userId=${id} AND feature='__budget__'`);
+    for (const id of [0, userId]) await tx.execute(sql`UPDATE gemini_usage_daily SET "totalTokens"=GREATEST(0,"totalTokens"-${reserved}+${actual}) WHERE "usageDate"=${usageDate} AND "userId"=${id} AND feature='__budget__'`);
   });
 }
 async function recordUsage(usageDate: string, userId: number, feature: string, inputTokens: number, outputTokens: number) {
   const db = await getDb(); if (!db) throw new Error("Database is required to record Gemini usage");
   const total = inputTokens + outputTokens;
-  await db.execute(sql`INSERT INTO gemini_usage_daily (usageDate,userId,feature,calls,inputTokens,outputTokens,totalTokens) VALUES (${usageDate},${userId},${feature},1,${inputTokens},${outputTokens},${total}) ON DUPLICATE KEY UPDATE calls=calls+1,inputTokens=inputTokens+VALUES(inputTokens),outputTokens=outputTokens+VALUES(outputTokens),totalTokens=totalTokens+VALUES(totalTokens)`);
+  await db.execute(sql`INSERT INTO gemini_usage_daily ("usageDate","userId",feature,calls,"inputTokens","outputTokens","totalTokens") VALUES (${usageDate},${userId},${feature},1,${inputTokens},${outputTokens},${total}) ON CONFLICT ("usageDate","userId",feature) DO UPDATE SET calls=gemini_usage_daily.calls+1,"inputTokens"=gemini_usage_daily."inputTokens"+EXCLUDED."inputTokens","outputTokens"=gemini_usage_daily."outputTokens"+EXCLUDED."outputTokens","totalTokens"=gemini_usage_daily."totalTokens"+EXCLUDED."totalTokens","updatedAt"=NOW()`);
 }
 
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {

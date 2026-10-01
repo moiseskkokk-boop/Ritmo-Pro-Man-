@@ -150,7 +150,12 @@ function Training({
   const session =
     selectedSession.data ?? data.sessions.find(s => s.activityDate === date);
   const start = trpc.fitness.start.useMutation({ onSuccess: refresh });
-  const finish = trpc.fitness.finish.useMutation({ onSuccess: refresh });
+  const finish = trpc.fitness.finish.useMutation({
+    onSuccess: () => {
+      setNote("");
+      refresh();
+    },
+  });
   const custom = data.plans.find(p => `plan:${p.id}` === selection);
   const preview: TrainingSnapshot = custom
     ? {
@@ -286,7 +291,7 @@ function Training({
                   saved={session.sets.find(
                     s => s.exerciseIndex === index && s.setIndex === setIndex
                   )}
-                  disabled={readOnly}
+                  disabled={readOnly || session.status === "completed"}
                   onSaved={refresh}
                 />
               ))
@@ -295,13 +300,36 @@ function Training({
             )}
           </article>
         ))}
-      {session && !readOnly && (
+      {session?.status === "completed" && (
+        <section className={panel}>
+          <p className="fitness-kicker">{new Date(`${session.activityDate}T12:00:00`).toLocaleDateString(language === "en" ? "en-GB" : language === "es" ? "es-ES" : "pt-PT", { day: "2-digit", month: "long", year: "numeric" })}</p>
+          <h2>{session.snapshot.originalId ? `${c.suggested} ${originalIds.indexOf(session.snapshot.originalId) + 1}` : session.snapshot.name}</h2>
+          <p>{c.finished}</p>
+          {session.note && <p><strong>{c.sessionNote}:</strong> {session.note}</p>}
+        </section>
+      )}
+      {session && session.status !== "completed" && !readOnly && (
         <section className={panel}>
           <label>
             {c.sessionNote}
+            <div className="fitness-note-presets">
+              {(language === "en" ? [
+                "Good workout", "Excellent workout", "I was tired, but did well", "I was tired and performed below expectations",
+                "Heavy workout, but completed", "Good strength today", "Low energy", "I felt progress in the loads",
+              ] : language === "es" ? [
+                "Buen entrenamiento", "Entrenamiento excelente", "Estaba cansado, pero me fue bien", "Estaba cansado y rendí por debajo de lo esperado",
+                "Entrenamiento pesado, pero completado", "Buena fuerza hoy", "Poca energía", "Sentí evolución en las cargas",
+              ] : [
+                "Bom treino", "Treino excelente", "Estava cansado, mas fui bem", "Estava cansado e rendi abaixo do esperado",
+                "Treino pesado, mas concluído", "Boa força hoje", "Pouca energia", "Senti evolução nas cargas",
+              ]).map(preset => (
+                <button key={preset} type="button" onClick={() => setNote(preset)}>{preset}</button>
+              ))}
+            </div>
             <textarea
               maxLength={2000}
               value={note}
+              placeholder={language === "en" ? "Write another note" : language === "es" ? "Escribir otra observación" : "Escrever outra observação"}
               onChange={e => setNote(e.target.value)}
             />
           </label>
