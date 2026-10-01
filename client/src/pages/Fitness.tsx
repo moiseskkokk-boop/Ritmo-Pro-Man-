@@ -3,7 +3,7 @@ import { localizeExercise } from "@shared/exercise-translations";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../server/routers";
 import { useEffect, useState } from "react";
-import { Link, Redirect } from "wouter";
+import { Link, Redirect, useLocation } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { exerciseById, templatesFor } from "@shared/workouts";
@@ -34,6 +34,7 @@ function Training({
   language: Language;
 }) {
   const experience = data.experience;
+  const [, setLocation] = useLocation();
   const defaultWorkoutTemplates = templatesFor(experience);
   const [selection, setSelection] = useState(
     new URLSearchParams(window.location.search).get("plan")
@@ -59,7 +60,7 @@ function Training({
   const summarize = trpc.fitness.summarize.useMutation({ onSuccess: refresh });
   const start = trpc.fitness.start.useMutation({ onSuccess: row => { setActiveId(row.id); setEditing(row.status === "completed"); refresh(); } });
   const finish = trpc.fitness.finish.useMutation({
-    onSuccess: (_result, input) => { setActiveId(input.sessionId); setEditing(false); refresh(); summarize.mutate({ sessionId: input.sessionId }); },
+    onSuccess: (_result, input) => { setActiveId(input.sessionId); setEditing(false); refresh(); summarize.mutate({ sessionId: input.sessionId }); setLocation("/historico"); },
   });
   const custom = data.plans.find(p => `plan:${p.id}` === selection);
   const preview: TrainingSnapshot = custom
@@ -86,21 +87,8 @@ function Training({
     <>
       <section className={panel}>
         <h1>{c.training}</h1>
-        <label>
-          {c.calendar}
-          <input
-            type="date"
-            value={date}
-            onChange={e => { setDate(e.target.value); setActiveId(null); setEditing(false); }}
-          />
-        </label>
-        <p>{date === data.today ? c.todayOnly : "Sessões concluídas podem ser corrigidas; novos registros somente hoje."}</p>
-        <div className="session-cards">{daySessions.map(row => <article key={row.id} className="fitness-log">
-          <p>{row.activityDate} · {new Date(row.startedAt).toLocaleTimeString()} · {row.status === "completed" ? c.finished : c.inProgress}</p>
-          <h2>{row.snapshot.name}</h2><p>{JSON.parse(row.completedExercisesJson).length}/{row.snapshot.exercises.length} {c.exercises}</p>
-          <button className="session-correct" onClick={() => { setActiveId(row.id); setEditing(row.status === "completed"); }}>{row.status === "completed" ? "Abrir / Corrigir" : "Continuar"}</button>
-        </article>)}</div>
-        {daySessions.length > 0 && date === data.today && <button onClick={() => { setActiveId("new"); setEditing(false); }}>Iniciar outro treino</button>}
+        <p className="fitness-kicker">{c.calendar}</p>
+        <h2>{new Date(`${data.today}T12:00:00`).toLocaleDateString(language === "en" ? "en-GB" : language === "es" ? "es-ES" : "pt-PT", { day: "2-digit", month: "long", year: "numeric" })}</h2>
         {!session && (
           <>
             <label>
@@ -201,55 +189,15 @@ function Training({
         ))}
       {mark.error && <p role="alert">{mark.error.message}</p>}
       {zoomImage && <div className="exercise-lightbox" role="dialog" aria-modal="true" aria-label={zoomImage.alt} onClick={() => setZoomImage(null)}><button type="button" className="exercise-lightbox-close" aria-label="Fechar imagem" onClick={() => setZoomImage(null)}>×</button><img src={zoomImage.src} alt={zoomImage.alt} onClick={e => e.stopPropagation()} /></div>}
-      {session?.status === "completed" && (
+      {session && session.status !== "completed" && !readOnly && (
         <section className={panel}>
-          <p className="fitness-kicker">{new Date(`${session.activityDate}T12:00:00`).toLocaleDateString(language === "en" ? "en-GB" : language === "es" ? "es-ES" : "pt-PT", { day: "2-digit", month: "long", year: "numeric" })}</p>
-          <h2>{session.snapshot.originalId && experience === "man" ? `${c.suggested} ${originalIds.indexOf(session.snapshot.originalId) + 1}` : session.snapshot.name}</h2>
-          <p>{c.finished}</p>
-          {session.note && <p><strong>{c.sessionNote}:</strong> {session.note}</p>}
-          <button className="session-correct" onClick={() => setEditing(!editing)}>{editing ? "Fechar detalhes" : "Abrir / Corrigir"}</button>
-          {session.smartwatch && (session.smartwatch.photoKey ? [session.smartwatch] : [session.smartwatch.workout, session.smartwatch.cardio]).filter(Boolean).map((record, index) => <div key={index}><h3>{record.modality}</h3><PrivatePhoto photoKey={record.photoKey} c={c} /><div>{Object.entries(record.metrics).filter(([, value]) => value !== null).map(([key, value]) => <p key={key}>{smartwatchMetricLabels[key] ?? (key === "confidence" ? "Confiança" : key)}: {Array.isArray(value) ? value.join(" · ") : String(value)}</p>)}</div></div>)}
-          {session.summary && <p className="fitness-answer">{session.summary}</p>}
-          <button disabled={summarize.isPending} onClick={() => summarize.mutate({ sessionId: session.id })}>{summarize.isPending ? "Gerando resumo…" : session.summary ? "Atualizar resumo com IA" : "Gerar resumo com IA"}</button>
-          {summarize.error && <p role="alert">{summarize.error.message}</p>}
-        </section>
-      )}
-      {session && (session.status !== "completed" || editing) && !readOnly && (
-        <section className={panel}>
-          <label>
-            {c.sessionNote}
-            <div className="fitness-note-presets">
-              {(language === "en" ? [
-                "Good workout", "Excellent workout", "I was tired, but did well", "I was tired and performed below expectations",
-                "Heavy workout, but completed", "Good strength today", "Low energy", "I felt progress in the loads",
-              ] : language === "es" ? [
-                "Buen entrenamiento", "Entrenamiento excelente", "Estaba cansado, pero me fue bien", "Estaba cansado y rendí por debajo de lo esperado",
-                "Entrenamiento pesado, pero completado", "Buena fuerza hoy", "Poca energía", "Sentí evolución en las cargas",
-              ] : [
-                "Bom treino", "Treino excelente", "Estava cansado, mas fui bem", "Estava cansado e rendi abaixo do esperado",
-                "Treino pesado, mas concluído", "Boa força hoje", "Pouca energia", "Senti evolução nas cargas",
-              ]).map(preset => (
-                <button key={preset} type="button" onClick={() => setNote(preset)}>{preset}</button>
-              ))}
-            </div>
-            <textarea
-              maxLength={2000}
-              value={note}
-              placeholder={language === "en" ? "Write another note" : language === "es" ? "Escribir otra observación" : "Escrever outra observação"}
-              onChange={e => setNote(e.target.value)}
-            />
-          </label>
-          <div className="fitness-grid session-daily-metrics"><label>Quantos litros de água bebeu hoje?<input type="number" min="0" max="20" step="0.1" value={waterLiters} onChange={e => setWaterLiters(e.target.value)} /></label><label>Cardio <small>Meta: 20 minutos de esteira</small><input aria-label="Quantos minutos de cardio fez?" type="number" min="0" max="1440" value={cardioMinutes} onChange={e => setCardioMinutes(e.target.value)} placeholder="Quantos minutos de cardio fez?" /></label></div>
-          <SessionSmartwatch key={session.id} sessionId={session.id} language={language} refresh={refresh} existing={session.smartwatch} />
           <button
-            disabled={finish.isPending || mark.isPending || readOnly || (session.status !== "completed" && !allExercisesDone)}
-            onClick={() =>
-              finish.mutate({ sessionId: session.id, note, waterLiters: waterLiters || null, cardioMinutes: cardioMinutes === "" ? null : Number(cardioMinutes), confirmed: true })
-            }
+            disabled={finish.isPending || mark.isPending || !allExercisesDone}
+            onClick={() => finish.mutate({ sessionId: session.id, note: null, waterLiters: null, cardioMinutes: null, confirmed: true })}
           >
-            {session.status === "completed" ? "Salvar correções" : c.finish}
+            {finish.isPending ? "Salvando…" : c.finish}
           </button>
-          {session.status !== "completed" && !allExercisesDone && <p className="save-notice">Marque todos os exercícios como feitos para liberar o salvamento.</p>}
+          {!allExercisesDone && <p className="save-notice">Marque todos os exercícios como feitos para liberar o salvamento.</p>}
           {finish.error && <p role="alert">{finish.error.message}</p>}
         </section>
       )}
@@ -908,10 +856,18 @@ function History({
               {s.metrics.volumeKg ?? c.unknown} kg · {c.reps}:{" "}
               {s.metrics.repetitions ?? c.unknown}
             </p>
-            <p>{s.note}</p>
+            {s.note && <p><strong>{c.sessionNote}:</strong> {s.note}</p>}
             {s.waterLiters != null && <p>{c.water}: {s.waterLiters} L</p>}
             {s.cardioMinutes != null && <p>{c.cardio}: {s.cardioMinutes} min</p>}
-            <Link className="session-correct" href={`/treino?session=${s.id}`}>Abrir / Corrigir</Link>
+            <div className="history-workout-exercises">
+              {s.snapshot.exercises.map((exercise, index) => {
+                const done = (JSON.parse(s.completedExercisesJson) as number[]).includes(index);
+                return <p key={`${s.id}:${index}:${exercise.exerciseId}`}><strong>{done ? "✓" : "○"} {localizeExercise(exerciseById[exercise.exerciseId].name, language)}</strong> · {exercise.sets} × {exercise.reps} · {c.rest} {exercise.restSeconds}s{exercise.loadKg != null ? ` · ${c.load} ${exercise.loadKg} kg` : ""}</p>;
+              })}
+            </div>
+            {s.smartwatch && <p><strong>Smartwatch:</strong> {s.smartwatch.photoKey ? s.smartwatch.modality : [s.smartwatch.workout?.modality, s.smartwatch.cardio?.modality].filter(Boolean).join(" · ")}</p>}
+            {s.summary && <p className="fitness-answer">{s.summary}</p>}
+            <span className="status-chip">Registro no histórico</span>
           </article>
         ))}
       </section>
