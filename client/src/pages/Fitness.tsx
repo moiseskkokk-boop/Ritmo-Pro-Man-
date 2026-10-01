@@ -165,7 +165,7 @@ function Training({
       );
   const plan = session?.snapshot ?? preview;
   const total = plan.exercises.reduce((sum, e) => sum + e.sets, 0);
-  const readOnly = date !== data.today || session?.status === "completed";
+  const readOnly = date !== data.today;
   return (
     <>
       <section className={panel}>

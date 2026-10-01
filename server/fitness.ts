@@ -355,10 +355,10 @@ export const fitnessRouter = router({
             message: "Treino não encontrado.",
           });
         assertToday(session.activityDate);
-        if (session.status !== "in_progress")
+        if (!(["in_progress", "completed"] as const).includes(session.status as "in_progress" | "completed"))
           throw new TRPCError({
             code: "CONFLICT",
-            message: "Treino já finalizado.",
+            message: "Treino não pode ser editado.",
           });
         const exercise = validateSet(session.snapshotJson, input);
         const values = {
@@ -421,10 +421,10 @@ export const fitnessRouter = router({
             message: "Treino não encontrado.",
           });
         assertToday(session.activityDate);
-        if (session.status !== "in_progress")
+        if (!(["in_progress", "completed"] as const).includes(session.status as "in_progress" | "completed"))
           throw new TRPCError({
             code: "CONFLICT",
-            message: "Treino já finalizado.",
+            message: "Treino não pode ser editado.",
           });
         const id = `${session.id}:${input.exerciseIndex}:${input.setIndex}`;
         const [previous] = await tx
@@ -487,7 +487,10 @@ export const fitnessRouter = router({
             code: "BAD_REQUEST",
             message: "Confirme ao menos uma série realizada.",
           });
-        if (session.status === "completed") return { success: true };
+        if (session.status === "completed") {
+          await tx.update(trainingSessions).set({ note: input.note }).where(eq(trainingSessions.id, session.id));
+          return { success: true };
+        }
         assertToday(session.activityDate);
         await tx
           .update(trainingSessions)
