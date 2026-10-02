@@ -271,13 +271,13 @@ const imageByExercise: Record<string, string> = {
   "Cadeira Flexora Máquina": "/exercises/C04-cadeira-flexora_d43175f7.png",
   "Mesa Flexora Máquina": "/exercises/C05-mesa-flexora_55f31beb.png",
   "Elevação Pélvica Máquina":
-    "/exercises/C06-elevacao-pelvica-maquina_4c7db6d0.png",
+    "/exercises/C06-elevacao-pelvica-maquina-natural-v2.png",
   "Panturrilha Sentado Máquina":
     "/exercises/C07-panturrilha-sentado_7bff436b.png",
   "Prancha Peso Corporal":
-    "/exercises/C08-prancha-peso-corporal_a426530f.png",
+    "/exercises/C08-prancha-peso-corporal-natural-v2.png",
   "Supino Máquina Articulada Bilateral":
-    "/exercises/D01-supino-maquina-articulada_f820cd33.png",
+    "/exercises/D01-supino-maquina-articulada-natural-v2.png",
   "Supino Banco Inclinado Halter":
     "/exercises/D02-supino-inclinado-halter_fd794bfe.png",
   "Puxada Fechada Barra Supinada":
@@ -285,9 +285,9 @@ const imageByExercise: Record<string, string> = {
   "Tríceps Testa Polia Alta Corda":
     "/exercises/D06-triceps-testa-polia-corda_2e20c396.png",
   "Rosca Direta Polia Baixa Barra V":
-    "/exercises/D07-rosca-direta-polia-barra-v_b29e58d5.png",
+    "/exercises/D07-rosca-direta-polia-barra-v-natural-v2.png",
   "Abdominal Parcial Solo":
-    "/exercises/D08-abdominal-parcial-solo_0600f291.png",
+    "/exercises/D08-abdominal-parcial-solo-natural-v2.png",
 };
 
 const imageFor = (exercise: Exercise) =>

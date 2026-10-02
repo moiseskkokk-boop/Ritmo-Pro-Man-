@@ -131,7 +131,7 @@ const manPrescriptions = {
     "sets": 3,
     "reps": "8–12",
     "unit": "reps",
-    "image": "/exercises/C06-elevacao-pelvica-maquina_4c7db6d0.png"
+    "image": "/exercises/C06-elevacao-pelvica-maquina-natural-v2.png"
   },
   "C07": {
     "sets": 4,
@@ -143,13 +143,13 @@ const manPrescriptions = {
     "sets": 3,
     "reps": "30–45 s",
     "unit": "seconds",
-    "image": "/exercises/C08-prancha-peso-corporal_a426530f.png"
+    "image": "/exercises/C08-prancha-peso-corporal-natural-v2.png"
   },
   "D01": {
     "sets": 3,
     "reps": "8–12",
     "unit": "reps",
-    "image": "/exercises/D01-supino-maquina-articulada_f820cd33.png"
+    "image": "/exercises/D01-supino-maquina-articulada-natural-v2.png"
   },
   "D02": {
     "sets": 3,
@@ -185,13 +185,13 @@ const manPrescriptions = {
     "sets": 3,
     "reps": "8–12",
     "unit": "reps",
-    "image": "/exercises/D07-rosca-direta-polia-barra-v_b29e58d5.png"
+    "image": "/exercises/D07-rosca-direta-polia-barra-v-natural-v2.png"
   },
   "D08": {
     "sets": 3,
     "reps": "15–25",
     "unit": "reps",
-    "image": "/exercises/D08-abdominal-parcial-solo_0600f291.png"
+    "image": "/exercises/D08-abdominal-parcial-solo-natural-v2.png"
   }
 } as const;
 
