@@ -82,63 +82,9 @@ export const defaultWorkoutTemplates = {
 } as const;
 
 export const womanWorkoutTemplates = {
-  "A": {
-    "name": "Inferior A",
-    "objective": "Hipertrofia",
-    "focusGroup": "Base & força",
-    "durationMinutes": 60,
-    "exercises": [
-      "W01",
-      "W02",
-      "W03",
-      "W04",
-      "W05",
-      "W06",
-      "W07"
-    ]
-  },
-  "B": {
-    "name": "Superior A",
-    "objective": "Hipertrofia",
-    "focusGroup": "Puxar & empurrar",
-    "durationMinutes": 60,
-    "exercises": [
-      "W08",
-      "W09",
-      "W10",
-      "W11",
-      "W12",
-      "W13"
-    ]
-  },
-  "C": {
-    "name": "Inferior B",
-    "objective": "Hipertrofia",
-    "focusGroup": "Posterior & glúteos",
-    "durationMinutes": 60,
-    "exercises": [
-      "W14",
-      "W03",
-      "W15",
-      "W16",
-      "W05",
-      "W06"
-    ]
-  },
-  "D": {
-    "name": "Superior B",
-    "objective": "Hipertrofia",
-    "focusGroup": "Costas & ombros",
-    "durationMinutes": 60,
-    "exercises": [
-      "W17",
-      "W18",
-      "W19",
-      "W20",
-      "W11",
-      "W21",
-      "W22"
-    ]
-  }
+  A: { name: "Inferior A", objective: "Hipertrofia", focusGroup: "Glúteos & quadríceps", durationMinutes: 60, exercises: ["W03", "W01", "W04", "W02", "W05", "W06", "W23", "W27"] },
+  B: { name: "Superior A", objective: "Hipertrofia", focusGroup: "Costas / Ombros / Peito", durationMinutes: 60, exercises: ["W08", "W09", "W10", "W20", "W11", "W12", "W13", "W25"] },
+  C: { name: "Inferior B", objective: "Hipertrofia", focusGroup: "Glúteos & posterior", durationMinutes: 60, exercises: ["W03", "W14", "W15", "W16", "W04", "W06", "W24", "W26"] },
+  D: { name: "Superior B", objective: "Hipertrofia", focusGroup: "Costas / Ombros / Peito", durationMinutes: 60, exercises: ["W17", "W18", "W19", "W11", "W21", "W22", "W25", "W27"] },
 } as const;
 export const templatesFor = (experience: Experience = "man") => experience === "woman" ? womanWorkoutTemplates : defaultWorkoutTemplates;
