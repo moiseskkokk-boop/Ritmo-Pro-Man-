@@ -763,57 +763,42 @@ function Body({
 }
 function Coach({ c, language }: { c: Copy; language: Language }) {
   const [question, setQuestion] = useState("");
-  const [authorized, setAuthorized] = useState(false);
+  const [authorized, setAuthorized] = useState(true);
   const utils = trpc.useUtils();
   const history = trpc.fitness.coachHistory.useQuery();
   const ask = trpc.fitness.askCoach.useMutation({
-    onSuccess: () => utils.fitness.coachHistory.invalidate(),
+    onSuccess: () => {
+      setQuestion("");
+      utils.fitness.coachHistory.invalidate();
+    },
   });
+  const turns = [...(history.data ?? [])].filter(t => t.status === "completed").reverse();
+  const send = () => {
+    const text = question.trim();
+    if (text.length < 3 || ask.isPending) return;
+    ask.mutate({ question: text, language, contextAuthorized: authorized });
+  };
   return (
-    <>
-      <section className={panel}>
-        <h1>AI Coach</h1>
-        <p>{c.coachHelp}</p>
-        <label>
-          {c.question}
-          <textarea
-            value={question}
-            maxLength={2000}
-            onChange={e => setQuestion(e.target.value)}
-          />
-        </label>
-        <label className="fitness-check">
-          <input
-            type="checkbox"
-            checked={authorized}
-            onChange={e => setAuthorized(e.target.checked)}
-          />
-          {c.authorize}
-        </label>
-        <button
-          disabled={ask.isPending || question.trim().length < 3}
-          onClick={() =>
-            ask.mutate({ question, language, contextAuthorized: authorized })
-          }
-        >
-          {ask.isPending ? c.loading : c.ask}
-        </button>
-        {ask.error && <p role="alert">{ask.error.message}</p>}
-        {ask.data && <p className="fitness-answer">{ask.data.answer}</p>}
-      </section>
-      <section className={panel}>
-        <h2>{c.history}</h2>
-        {history.data
-          ?.filter(t => t.status === "completed")
-          .map(t => (
-            <article key={t.id} className="fitness-log">
-              <h3>{t.question}</h3>
-              <p className="fitness-answer">{t.answer}</p>
-            </article>
-          ))}
-        {history.error && <p role="alert">{history.error.message}</p>}
-      </section>
-    </>
+    <section className="fitness-card coach-chat-shell">
+      <header className="coach-chat-header">
+        <div><h1>AI Coach</h1><span className="coach-online"><i /> RITMO AI</span></div>
+        <label className="coach-data-toggle"><input type="checkbox" checked={authorized} onChange={e => setAuthorized(e.target.checked)} /> Dados RITMO {authorized ? "✓" : ""}</label>
+      </header>
+      <div className="coach-thread" aria-live="polite">
+        {!turns.length && !ask.data && <div className="coach-welcome"><strong>RITMO AI</strong><p>Converse comigo sobre treino, evolução e os seus dados do RITMO.</p></div>}
+        {turns.map(t => <div className="coach-turn" key={t.id}>
+          <div className="coach-bubble coach-user">{t.question}</div>
+          <div className="coach-bubble coach-ai"><strong>RITMO AI</strong><span>{t.answer}</span></div>
+        </div>)}
+        {ask.isPending && <div className="coach-turn coach-live-turn"><div className="coach-bubble coach-user">{question.trim()}</div><div className="coach-bubble coach-ai coach-thinking"><strong>RITMO AI</strong><span>está pensando<span className="coach-dots">...</span></span></div></div>}
+        {ask.error && <div className="coach-error" role="alert">Não consegui concluir esta resposta. {ask.error.message}</div>}
+      </div>
+      <div className="coach-composer">
+        <textarea aria-label={c.question} placeholder="Pergunte ao AI Coach..." value={question} maxLength={2000} rows={1} onChange={e => setQuestion(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} />
+        <button aria-label={c.ask} disabled={ask.isPending || question.trim().length < 3} onClick={send}>➤</button>
+      </div>
+      <p className="coach-privacy">{authorized ? "Dados do RITMO autorizados nesta conversa." : "Resposta sem usar seus dados do RITMO."}</p>
+    </section>
   );
 }
 function History({
