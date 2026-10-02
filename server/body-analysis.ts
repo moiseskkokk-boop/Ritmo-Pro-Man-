@@ -1,9 +1,9 @@
 import { z } from "zod";
 
 export const bodyAnalysisResultSchema = z.object({
-  bodyFatEstimatePercent: z.number().int().min(3).max(70).nullable(),
-  confidencePercent: z.number().int().min(0).max(100),
-  muscularDevelopmentScore: z.number().int().min(0).max(100).nullable().default(null),
+  bodyFatEstimatePercent: z.number().min(3).max(70).nullable(),
+  confidencePercent: z.number().min(0).max(100),
+  muscularDevelopmentScore: z.number().min(0).max(100).nullable().default(null),
   developedAreas: z.array(z.object({ muscle: z.string().min(2).max(80), level: z.enum(["moderate","good","high"]), reason: z.string().min(5).max(240) })).max(8).default([]),
   developmentPriorities: z.array(z.object({ muscle: z.string().min(2).max(80), visualDevelopment: z.enum(["low","moderate","good","high"]), priority: z.enum(["low","moderate","high"]), reason: z.string().min(5).max(300) })).max(8).default([]),
   proportionAssessment: z.string().min(20).max(1000).default("Sem avaliação proporcional estruturada disponível para este registo."),
@@ -48,8 +48,8 @@ export function parseBodyAnalysisResponse(text: string): BodyAnalysisResult {
   json.objectiveImpact=textValue(json?.objectiveImpact,"O objetivo selecionado será considerado na montagem do treino personalizado.");
   json.observations=textValue(json?.observations,"Análise visual concluída com base nas quatro imagens fornecidas.");
   json.performanceAlignment=textValue(json?.performanceAlignment,"O treino deve ser ajustado ao objetivo, histórico e recuperação informados.");
-  json.trainingConsiderations=Array.isArray(json?.trainingConsiderations)?json.trainingConsiderations.filter((x:any)=>typeof x==="string"&&x.trim()).slice(0,5):[];
+  json.trainingConsiderations=Array.isArray(json?.trainingConsiderations)?json.trainingConsiderations.filter((x:any)=>typeof x==="string"&&x.trim()).slice(0,5):(typeof json?.trainingConsiderations==="string"&&json.trainingConsiderations.trim()?[json.trainingConsiderations.trim()]:[]);
   json.nutritionHydrationReview=textValue(json?.nutritionHydrationReview,"Não há dados suficientes para uma revisão detalhada de alimentação e hidratação.");
-  json.dataLimitations=Array.isArray(json?.dataLimitations)?json.dataLimitations.filter((x:any)=>typeof x==="string"&&x.trim()).slice(0,6):["Estimativa visual; não substitui avaliação clínica ou medição de composição corporal."];
+  json.dataLimitations=Array.isArray(json?.dataLimitations)?json.dataLimitations.filter((x:any)=>typeof x==="string"&&x.trim()).slice(0,6):(typeof json?.dataLimitations==="string"&&json.dataLimitations.trim()?[json.dataLimitations.trim()]:["Estimativa visual; não substitui avaliação clínica ou medição de composição corporal."]);
   return bodyAnalysisResultSchema.parse(json);
 }
