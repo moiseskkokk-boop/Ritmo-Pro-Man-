@@ -2152,10 +2152,10 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
           <a href="/dashboard">{language === "en" ? "Home" : language === "es" ? "Inicio" : "Início"}</a>
           <a href="/perfil">{c.profile}</a>
           <a href="/treino">{c.training}</a>
-          <a href="/treinos">Meus treinos</a>
-          <a href="/avaliacao">Avaliação</a>
+          <a href="/treinos">{language === "en" ? "My workouts" : language === "es" ? "Mis entrenamientos" : "Meus treinos"}</a>
+          <a href="/avaliacao">{language === "en" ? "Assessment" : language === "es" ? "Evaluación" : "Avaliação"}</a>
           <a href="/analise">{c.bodyAnalysis}</a>
-          <a href="/assinatura">Assinatura</a>
+          <a href="/assinatura">{language === "en" ? "Subscription" : language === "es" ? "Suscripción" : "Assinatura"}</a>
           {user && (
             <button className="nav-logout" onClick={() => logout()}>
               {c.logout}
@@ -2256,9 +2256,9 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
                   MOVIMENTOS<strong>32</strong>
                 </div>
                 <div className="hero-disc">
-                  <span>FOCO DA SEMANA</span>
+                  <span>{language === "en" ? "WEEKLY FOCUS" : language === "es" ? "ENFOQUE SEMANAL" : "FOCO DA SEMANA"}</span>
                   <strong>04</strong>
-                  <small>DIAS DE TREINO</small>
+                  <small>{language === "en" ? "TRAINING DAYS" : language === "es" ? "DÍAS DE ENTRENAMIENTO" : "DIAS DE TREINO"}</small>
                 </div>
                 <div className="hero-stat-card bottom">
                   CONSISTÊNCIA<strong>todo dia.</strong>
@@ -2581,7 +2581,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
                       disabled={!user || !isTodaySelectable || !selectedAllComplete || saveDailyMutation.isPending}
                       onClick={() => persistDaily()}
                     >
-                      {saveDailyMutation.isPending ? "Salvando…" : "Salvar treino"}
+                      {saveDailyMutation.isPending ? (language === "en" ? "Saving…" : language === "es" ? "Guardando…" : "Salvando…") : (language === "en" ? "Save workout" : language === "es" ? "Guardar entrenamiento" : "Salvar treino")}
                     </button>
                     {selectedWorkout && !selectedAllComplete && <small className="save-notice">Confirme todos os exercícios nas bolinhas para liberar o salvamento do treino.</small>}
                     {metricsNotice && (
@@ -2622,7 +2622,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
         {view === "analysis" && (
           <>
             <section className="analysis-page-intro section-shell">
-              <div className="section-kicker green">/ ANÁLISE CORPORAL</div>
+              <div className="section-kicker green">/ {language === "en" ? "BODY ANALYSIS" : language === "es" ? "ANÁLISIS CORPORAL" : "ANÁLISE CORPORAL"}</div>
               <h1>
                 {language === "en"
                   ? "Understand your evolution."
@@ -2836,14 +2836,14 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
       )}
       {day5CheckOpen && (
         <div className="modal-backdrop" onClick={() => setDay5CheckOpen(false)}><div className="modal-card day5-simple-checkin" onClick={e => e.stopPropagation()}>
-          <button className="modal-close" onClick={() => setDay5CheckOpen(false)}>x</button><p className="eyebrow green-text">MONTAR TREINO COM IA</p><h2>Conte como foi sua semana</h2><p>O RITMO cruza suas respostas com treinos, recuperacao, medidas, evolucao e analise corporal. A IA tambem pode concluir que o melhor e recuperar.</p>
+          <button className="modal-close" onClick={() => setDay5CheckOpen(false)}>x</button><p className="eyebrow green-text">{language === "en" ? "BUILD WORKOUT WITH AI" : language === "es" ? "CREAR ENTRENAMIENTO CON IA" : "MONTAR TREINO COM IA"}</p><h2>{language === "en" ? "Tell us about your week" : language === "es" ? "Cuéntanos cómo fue tu semana" : "Conte como foi sua semana"}</h2><p>{language === "en" ? "RITMO combines your answers with workouts, recovery, measurements, progress and body analysis. AI may also decide that recovery is the better option." : language === "es" ? "RITMO combina tus respuestas con entrenamientos, recuperación, medidas, evolución y análisis corporal. La IA también puede decidir que lo mejor es recuperar." : "O RITMO cruza suas respostas com treinos, recuperação, medidas, evolução e análise corporal. A IA também pode concluir que o melhor é recuperar."}</p>
           <div className="day5-simple-grid">
-            <section className="day5-question"><strong>1. Como voce se sentiu fazendo os treinos desta semana?</strong><textarea maxLength={500} placeholder="Ex.: Treinei bem, tive energia, mas o ultimo treino foi mais pesado." value={day5Readiness.weeklyFeeling} onChange={e=>setDay5Readiness(v=>({...v,weeklyFeeling:e.target.value}))}/></section>
-            <section className="day5-question"><strong>2. Quais treinos voce realmente fez esta semana?</strong><p className="confidence-note">Marque os treinos executados. O RITMO tambem confere os registros reais da semana.</p><div className="day5-workout-checks">{day5WorkoutPlans.data?.map(plan=><label key={plan.id} className="day5-check-card"><input type="checkbox" checked={day5Readiness.selectedWorkoutIds.includes(plan.id)} onChange={e=>setDay5Readiness(v=>({...v,selectedWorkoutIds:e.target.checked?[...v.selectedWorkoutIds,plan.id]:v.selectedWorkoutIds.filter(id=>id!==plan.id)}))}/><span><b>{plan.name}</b><small>{plan.focusGroup}</small></span></label>)}{day5WorkoutPlans.data?.length===0&&<p>Voce ainda nao tem treinos salvos em Meus Treinos.</p>}</div></section>
-            <section className="day5-question"><strong>3. Voce sente que consegue fazer um 5. treino?</strong><div className="day5-choice-row">{[["yes","Sim - estou bem"],["maybe","Talvez - ainda estou cansado"],["no","Nao - preciso recuperar"]].map(([value,label])=><label key={value}><input type="radio" name="day5-capacity" checked={day5Readiness.perceivedCapacity===value} onChange={()=>setDay5Readiness(v=>({...v,perceivedCapacity:value as typeof v.perceivedCapacity}))}/>{label}</label>)}</div></section>
+            <section className="day5-question"><strong>{language === "en" ? "1. How did you feel during this week’s workouts?" : language === "es" ? "1. ¿Cómo te sentiste durante los entrenamientos de esta semana?" : "1. Como você se sentiu fazendo os treinos desta semana?"}</strong><textarea maxLength={500} placeholder="Ex.: Treinei bem, tive energia, mas o ultimo treino foi mais pesado." value={day5Readiness.weeklyFeeling} onChange={e=>setDay5Readiness(v=>({...v,weeklyFeeling:e.target.value}))}/></section>
+            <section className="day5-question"><strong>{language === "en" ? "2. Which workouts did you actually complete this week?" : language === "es" ? "2. ¿Qué entrenamientos completaste realmente esta semana?" : "2. Quais treinos você realmente fez esta semana?"}</strong><p className="confidence-note">Marque os treinos executados. O RITMO tambem confere os registros reais da semana.</p><div className="day5-workout-checks">{day5WorkoutPlans.data?.map(plan=><label key={plan.id} className="day5-check-card"><input type="checkbox" checked={day5Readiness.selectedWorkoutIds.includes(plan.id)} onChange={e=>setDay5Readiness(v=>({...v,selectedWorkoutIds:e.target.checked?[...v.selectedWorkoutIds,plan.id]:v.selectedWorkoutIds.filter(id=>id!==plan.id)}))}/><span><b>{plan.name}</b><small>{plan.focusGroup}</small></span></label>)}{day5WorkoutPlans.data?.length===0&&<p>Voce ainda nao tem treinos salvos em Meus Treinos.</p>}</div></section>
+            <section className="day5-question"><strong>{language === "en" ? "3. Do you feel able to do a 5th workout?" : language === "es" ? "3. ¿Sientes que puedes hacer un 5.º entrenamiento?" : "3. Você sente que consegue fazer um 5.º treino?"}</strong><div className="day5-choice-row">{[["yes","Sim - estou bem"],["maybe","Talvez - ainda estou cansado"],["no","Nao - preciso recuperar"]].map(([value,label])=><label key={value}><input type="radio" name="day5-capacity" checked={day5Readiness.perceivedCapacity===value} onChange={()=>setDay5Readiness(v=>({...v,perceivedCapacity:value as typeof v.perceivedCapacity}))}/>{label}</label>)}</div></section>
             <section className="day5-question"><strong>4. Sente dor muscular ou alguma regiao ainda muito cansada?</strong><div className="day5-choice-row"><label><input type="radio" name="day5-soreness" checked={!day5Readiness.soreness} onChange={()=>setDay5Readiness(v=>({...v,soreness:false,sorenessRegions:[]}))}/>Nao</label><label><input type="radio" name="day5-soreness" checked={day5Readiness.soreness} onChange={()=>setDay5Readiness(v=>({...v,soreness:true}))}/>Sim</label></div>{day5Readiness.soreness&&<><div className="day5-muscle-grid">{["Peito","Costas","Ombros","Biceps","Triceps","Core","Gluteos","Quadriceps","Posteriores","Panturrilhas"].map(region=><label key={region}><input type="checkbox" checked={day5Readiness.sorenessRegions.includes(region)} onChange={e=>setDay5Readiness(v=>({...v,sorenessRegions:e.target.checked?[...v.sorenessRegions,region]:v.sorenessRegions.filter(x=>x!==region)}))}/>{region}</label>)}</div><select value={day5Readiness.sorenessIntensity} onChange={e=>setDay5Readiness(v=>({...v,sorenessIntensity:e.target.value as typeof v.sorenessIntensity}))}><option value="light">Leve</option><option value="moderate">Moderada</option><option value="strong">Forte</option></select></>}</section>
             <section className="day5-question"><strong>5. Tem alguma regiao que voce acha que precisa melhorar?</strong><textarea maxLength={300} placeholder="Opcional. Ex.: Acho que preciso desenvolver mais o biceps." value={day5Readiness.perceivedPriority} onChange={e=>setDay5Readiness(v=>({...v,perceivedPriority:e.target.value}))}/><small>Sua percepcao e analisada junto com seus dados; nao e uma ordem para a IA.</small></section>
-          </div><div className="assessment-actions"><button className="dark-btn" disabled={!day5Readiness.weeklyFeeling.trim()||analyzeDay5Mutation.isPending} onClick={submitDay5Analysis}>{analyzeDay5Mutation.isPending?"Analisando...":"Criar treino com IA"}</button></div>
+          </div><div className="assessment-actions"><button className="dark-btn" disabled={!day5Readiness.weeklyFeeling.trim()||analyzeDay5Mutation.isPending} onClick={submitDay5Analysis}>{analyzeDay5Mutation.isPending ? (language === "en" ? "Analyzing…" : language === "es" ? "Analizando…" : "Analisando…") : (language === "en" ? "Create workout with AI" : language === "es" ? "Crear entrenamiento con IA" : "Criar treino com IA")}</button></div>
         </div></div>
       )}
       {day5Open && (
@@ -2857,7 +2857,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
             </button>
             <p className="eyebrow green-text">{t.day5Decision}</p>
             <h2>{recommendationLabel}</h2>
-            {aiDay5?.decision && <div className="day5-recommendation"><strong>Decisão do RITMO</strong><span>{aiDay5.decision === "TRAIN" ? "Treino recomendado" : aiDay5.decision === "LIGHT_SESSION" ? "Sessão leve recomendada" : aiDay5.decision === "ACTIVE_RECOVERY" ? "Recuperação ativa" : aiDay5.decision === "REST" ? "Hoje, descanso" : "Dados insuficientes"}</span></div>}
+            {aiDay5?.decision && <div className="day5-recommendation"><strong>{language === "en" ? "RITMO decision" : language === "es" ? "Decisión de RITMO" : "Decisão do RITMO"}</strong><span>{aiDay5.decision === "TRAIN" ? "Treino recomendado" : aiDay5.decision === "LIGHT_SESSION" ? "Sessão leve recomendada" : aiDay5.decision === "ACTIVE_RECOVERY" ? "Recuperação ativa" : aiDay5.decision === "REST" ? "Hoje, descanso" : "Dados insuficientes"}</span></div>}
             <p>{aiDay5?.rationale || c.day5Lead}</p>
             {aiDay5?.userPerceptionAssessment && <p className="confidence-note"><strong>Sua percepção:</strong> {aiDay5.userPerceptionAssessment.supported ? "compatível com os dados. " : "não confirmada pelos dados atuais. "}{aiDay5.userPerceptionAssessment.reason}</p>}
             {aiDay5?.dataUsed && <p className="confidence-note">Dados usados: {aiDay5.dataUsed.completedWorkouts} treino(s) concluído(s) · análise corporal {aiDay5.dataUsed.bodyAnalysis ? "✓" : "—"} · avaliação semanal {aiDay5.dataUsed.weeklyAssessment ? "✓" : "—"} · wearable {aiDay5.dataUsed.wearable ? "✓" : "—"}</p>}

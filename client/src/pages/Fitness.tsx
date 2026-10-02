@@ -83,7 +83,7 @@ function Training({
   const readOnly = date !== data.today && session?.status !== "completed";
   if (activeId && activeId !== "new" && !session) return <section className={panel}>
     <p role={selectedSession.isLoading ? "status" : "alert"}>{selectedSession.isLoading ? c.loading : selectedSession.error?.message ?? "Sessão não encontrada."}</p>
-    <button onClick={() => { setActiveId("new"); setDate(data.today); setEditing(false); }}>Voltar ao treino de hoje</button>
+    <button onClick={() => { setActiveId("new"); setDate(data.today); setEditing(false); }}>{language === "en" ? "Back to today’s workout" : language === "es" ? "Volver al entrenamiento de hoy" : "Voltar ao treino de hoje"}</button>
   </section>;
   return (
     <>
@@ -787,7 +787,7 @@ function Coach({ c, language }: { c: Copy; language: Language }) {
         <label className="coach-data-toggle"><input type="checkbox" checked={authorized} onChange={e => setAuthorized(e.target.checked)} /> Dados RITMO {authorized ? "✓" : ""}</label>
       </header>
       <div className="coach-thread" aria-live="polite">
-        {!turns.length && !ask.data && <div className="coach-welcome"><strong>RITMO AI</strong><p>Converse comigo sobre treino, evolução e os seus dados do RITMO.</p></div>}
+        {!turns.length && !ask.data && <div className="coach-welcome"><strong>RITMO AI</strong><p>{language === "en" ? "Talk to me about training, progress and your RITMO data." : language === "es" ? "Habla conmigo sobre entrenamiento, evolución y tus datos de RITMO." : "Converse comigo sobre treino, evolução e os seus dados do RITMO."}</p></div>}
         {turns.map(t => <div className="coach-turn" key={t.id}>
           <div className="coach-bubble coach-user">{t.question}</div>
           <div className="coach-bubble coach-ai"><strong>RITMO AI</strong><span>{t.answer}</span></div>
@@ -854,7 +854,7 @@ function History({
             </div>
             {s.smartwatch && <p><strong>Smartwatch:</strong> {s.smartwatch.photoKey ? s.smartwatch.modality : [s.smartwatch.workout?.modality, s.smartwatch.cardio?.modality].filter(Boolean).join(" · ")}</p>}
             {s.summary && <p className="fitness-answer">{s.summary}</p>}
-            <span className="status-chip">Registro no histórico</span>
+            <span className="status-chip">{language === "en" ? "History record" : language === "es" ? "Registro en el historial" : "Registro no histórico"}</span>
           </article>
         ))}
       </section>
@@ -1028,8 +1028,8 @@ export default function Fitness({
             ["/historico", c.history],
             ["/coach", "AI Coach"],
             ["/perfil", c.profile],
-            ["/analise", "Avaliação mensal"],
-            ["/assinatura", "Assinatura"],
+            ["/analise", language === "en" ? "Monthly assessment" : language === "es" ? "Evaluación mensual" : "Avaliação mensal"],
+            ["/assinatura", language === "en" ? "Subscription" : language === "es" ? "Suscripción" : "Assinatura"],
             ["/escolher-versao", "Trocar versão"],
           ].map(([href, label]) => (
             <Link key={href} href={href}>
