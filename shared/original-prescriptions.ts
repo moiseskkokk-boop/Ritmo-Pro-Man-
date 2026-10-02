@@ -95,7 +95,7 @@ const manPrescriptions = {
     "sets": 3,
     "reps": "12–20",
     "unit": "reps",
-    "image": "/exercises/B08-crunch-polia-alta_094cbe8b.png"
+    "image": "/exercises/B08-crunch-polia-alta-natural-v2.png"
   },
   "C01": {
     "sets": 3,

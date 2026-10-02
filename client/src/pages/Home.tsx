@@ -262,7 +262,7 @@ const imageByExercise: Record<string, string> = {
   "Rosca Alternada Halter Em Pé":
     "/exercises/B07-rosca-alternada-halter-em-pe_c133509c.png",
   "Crunch Polia Alta Corda Barra":
-    "/exercises/B08-crunch-polia-alta_094cbe8b.png",
+    "/exercises/B08-crunch-polia-alta-natural-v2.png",
   "Agachamento Hack Máquina":
     "/exercises/C01-agachamento-hack_ff4313c0.png",
   "Leg Press 45° Máquina": "/exercises/C02-leg-press-45_70ed7d8c.png",
