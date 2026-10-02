@@ -3,6 +3,7 @@ import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { Camera, Check, ImagePlus, LogOut, Moon, Save, Sun, Trash2, UserRound, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useRitmoLanguage } from "@/lib/ritmo-language";
 
 type Language = "pt" | "en" | "es";
 
@@ -26,7 +27,7 @@ const copy = {
 
 export default function Profile() {
   const { user, loading, logout } = useAuth();
-  const [language, setLanguage] = useState<Language>(() => (localStorage.getItem("ritmo-mf-language") as Language) || "pt");
+  const [language, setGlobalLanguage] = useRitmoLanguage();
   const [isDark, setIsDark] = useState(() => localStorage.getItem("ritmo-mf-theme") !== "light");
   const [preview, setPreview] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -78,10 +79,7 @@ export default function Profile() {
   }, [user?.profileImageUrl, selectedFile]);
   useEffect(() => { setProfileName(user?.name ?? ""); }, [user?.name]);
 
-  const setLang = (next: Language) => {
-    localStorage.setItem("ritmo-mf-language", next);
-    setLanguage(next);
-  };
+  const setLang = (next: Language) => setGlobalLanguage(next);
   const toggleTheme = () => setIsDark(current => {
     const next = !current;
     localStorage.setItem("ritmo-mf-theme", next ? "dark" : "light");
@@ -124,7 +122,7 @@ export default function Profile() {
     setError("");
   };
 
-  return <div data-experience={user?.experience ?? "general"} className={`ritmo-page profile-page ${user?.experience === "woman" ? "theme-woman-light" : (isDark ? "theme-dark" : "")}`} id="top">
+  return <div data-experience={user?.experience ?? "general"} className={`ritmo-page profile-page ${user?.experience === "woman" ? "theme-woman-dark" : (isDark ? "theme-dark" : "")}`} id="top">
     <header className="site-header">
       <a className="brand" href="/treino" aria-label="Ritmo Pro início"><span className="brand-mark"><img src={user?.experience === "woman" ? "/brand/ritmo-pro-woman.png" : "/brand/ritmo-pro-man.png"} alt="" /></span><span><strong>{user?.experience === "woman" ? "Ritmo Woman" : "Ritmo Pro"}</strong><small>TREINO / 04X</small></span></a>
       <nav className="main-nav"><a href={user?.experience === "woman" ? "/woman" : "/dashboard"}>{language === "en" ? "Home" : language === "es" ? "Inicio" : "Início"}</a><a className="active" href="/perfil">{t.profile}</a><a href={user?.experience === "woman" ? "/woman" : "/treino"}>{t.training}</a><a href="/treinos">Meus treinos</a><a href="/avaliacao">Avaliação</a><a href="/analise">{t.analysis}</a><a href="/assinatura">Assinatura</a>{user && <a href="/sair">{t.logout}</a>}</nav>

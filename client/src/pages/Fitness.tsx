@@ -3,6 +3,8 @@ import { localizeExercise } from "@shared/exercise-translations";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "../../../server/routers";
 import { useEffect, useState } from "react";
+import { useRitmoLanguage } from "@/lib/ritmo-language";
+import { Dumbbell, Library, Activity, HistoryIcon, Sparkles, UserRound, ClipboardCheck, CreditCard, RefreshCw } from "lucide-react";
 import { Link, Redirect, useLocation } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
@@ -927,6 +929,7 @@ function History({
   );
 }
 function Dashboard({ c, language }: { data: Overview; c: Copy; language: Language }) {
+  const icons = [Dumbbell, Library, Activity, HistoryIcon, Sparkles, UserRound, ClipboardCheck, CreditCard, RefreshCw];
   const copy = language === "en" ? {
     title: "Your Ritmo Pro",
     lead: "Choose where you want to go.",
@@ -972,7 +975,7 @@ function Dashboard({ c, language }: { data: Overview; c: Copy; language: Languag
   };
   return <section className="ritmo-home-dashboard" aria-labelledby="ritmo-home-title">
     <div className="ritmo-home-intro"><p className="fitness-kicker">RITMO PRO</p><h1 id="ritmo-home-title">{copy.title}</h1><p>{copy.lead}</p></div>
-    <div className="ritmo-home-grid">{copy.cards.map(([href,title,description]) => <Link className="ritmo-home-card" href={href} key={href}><span className="ritmo-home-card-mark" aria-hidden="true">↗</span><h2>{title}</h2><p>{description}</p></Link>)}</div>
+    <div className="ritmo-home-grid">{copy.cards.map(([href,title,description], index) => { const Icon=icons[index]; return <Link className="ritmo-home-card" href={href} key={href}><span className="ritmo-home-card-icon" aria-hidden="true"><Icon size={24}/></span><h2>{title}</h2><p>{description}</p></Link>; })}</div>
   </section>;
 }
 
@@ -987,10 +990,8 @@ export default function Fitness({
     enabled: !!user,
     refetchInterval: 60_000,
   });
-  const [language, setLanguage] = useState<Language>(() => {
-    const saved = localStorage.getItem("ritmo-language");
-    return saved === "en" || saved === "es" ? saved : "pt";
-  });
+  const [language, setGlobalLanguage] = useRitmoLanguage();
+  const setLanguage = (value: Language) => setGlobalLanguage(value);
   const c = fitnessCopy[language];
   const prefs = trpc.fitness.preferences.useMutation();
   useEffect(() => {
@@ -1010,7 +1011,6 @@ export default function Fitness({
           onChange={e => {
             const l = e.target.value as Language;
             setLanguage(l);
-            localStorage.setItem("ritmo-language", l);
             if (query.data)
               prefs.mutate({ ...query.data.preferences, language: l });
           }}
