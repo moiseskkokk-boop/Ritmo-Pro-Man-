@@ -7,6 +7,7 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch, useLocation } from "wouter";
 import RitmoAppHeader from "./components/ritmo/RitmoAppHeader";
 import ErrorBoundary from "./components/ErrorBoundary";
+import RitmoLoader from "./components/ritmo/RitmoLoader";
 import { ThemeProvider } from "./contexts/ThemeContext";
 const Home = lazy(() => import("./pages/Home"));
 const Profile = lazy(() => import("./pages/Profile"));
@@ -35,12 +36,10 @@ function Router() {
   return (
     <Suspense
       fallback={
-        <main className="grid min-h-screen place-items-center" role="status">
-          Ritmo Pro…
-        </main>
+        <RitmoLoader />
       }
     >
-      <div data-experience={user?.experience ?? "general"} className={`ritmo-app-shell ${user?.experience === "woman" ? "ritmo-woman" : "ritmo-man"}`}>{user && !publicRoute && <RitmoAppHeader />}<Switch>
+      <div data-experience={user?.experience ?? "general"} className={`ritmo-app-shell ${user?.experience === "woman" ? "ritmo-woman" : "ritmo-man"}`}>{user && !publicRoute && <RitmoAppHeader />}<div key={location} className="ritmo-page-transition"><Switch>
         <Route path={"/"} component={Experience} />
         <Route path={"/treino"} component={TrainingPage} />
         <Route path={"/analise"} component={AnalysisPage} />
@@ -65,7 +64,7 @@ function Router() {
         <Route path={"/404"} component={NotFound} />
         {/* Final fallback route */}
         <Route component={NotFound} />
-      </Switch></div>
+      </Switch></div></div>
     </Suspense>
   );
 }

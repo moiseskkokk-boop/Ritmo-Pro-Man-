@@ -15,6 +15,7 @@ export default function RitmoAppHeader() {
   const { user, logout } = useAuth();
   const [location] = useLocation();
   const [open, setOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [lang, setLang] = useRitmoLanguage();
   if (!user) return null;
   const woman = user.experience === "woman";
@@ -31,8 +32,7 @@ export default function RitmoAppHeader() {
     </nav>
     <div className="ritmo-global-actions">
       <select aria-label="Idioma" value={lang} onChange={e=>setLang(e.target.value as Lang)}><option value="pt">PT</option><option value="en">EN</option><option value="es">ES</option></select>
-      <Link href="/perfil" className="ritmo-global-account">{user.profileImageUrl ? <img className="ritmo-global-avatar" src={user.profileImageUrl} alt={name}/> : <span>{name.slice(0,1).toUpperCase()}</span>}<b>{name}</b></Link>
-      <button className="ritmo-global-logout" onClick={()=>logout()}>{lang==="pt"?"Sair":lang==="es"?"Salir":"Sign out"}</button>
+      <div className="ritmo-account-wrap"><button className="ritmo-global-account" aria-expanded={accountOpen} onClick={()=>setAccountOpen(v=>!v)}>{user.profileImageUrl ? <img className="ritmo-global-avatar" src={user.profileImageUrl} alt={name}/> : <span>{name.slice(0,1).toUpperCase()}</span>}<b>{name}</b></button>{accountOpen&&<div className="ritmo-account-menu"><Link href="/perfil" onClick={()=>setAccountOpen(false)}>{labels[lang][1]}</Link><Link href="/escolher-versao" onClick={()=>setAccountOpen(false)}>{lang==="pt"?"Trocar versão":lang==="es"?"Cambiar versión":"Switch version"}</Link><button onClick={()=>logout()}>{lang==="pt"?"Sair":lang==="es"?"Salir":"Sign out"}</button></div>}</div>
     </div>
   </header>;
 }
