@@ -30,7 +30,16 @@ export function decodeBodyImage(dataUrl: string, maxBytes = 1_500_000) {
   return { mimeType, data };
 }
 
+function normalizeLevel(value: unknown, allowed: string[]) {
+  if (typeof value !== "string") return value;
+  const v=value.trim().toLowerCase().replace(/[ -]+/g,"_");
+  const map:Record<string,string>={medium:"moderate",average:"moderate",normal:"moderate",strong:"high",very_high:"high",very_good:"high",excellent:"high",weak:"low",poor:"low"};
+  const normalized=map[v]??v;
+  return allowed.includes(normalized)?normalized:value;
+}
 export function parseBodyAnalysisResponse(text: string): BodyAnalysisResult {
-  const json = JSON.parse(text) as unknown;
+  const json = JSON.parse(text) as any;
+  if (Array.isArray(json?.developedAreas)) json.developedAreas=json.developedAreas.map((x:any)=>({...x,level:normalizeLevel(x?.level,["moderate","good","high"])}));
+  if (Array.isArray(json?.developmentPriorities)) json.developmentPriorities=json.developmentPriorities.map((x:any)=>({...x,visualDevelopment:normalizeLevel(x?.visualDevelopment,["low","moderate","good","high"]),priority:normalizeLevel(x?.priority,["low","moderate","high"])}));
   return bodyAnalysisResultSchema.parse(json);
 }
