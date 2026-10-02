@@ -56,6 +56,11 @@ export const womanExerciseCatalog = [
   {"id": "W20", "name": "Desenvolvimento de Ombros", "group": "Ombros", "image": "/exercises-woman/desenvolvimento-ombros_37111aae.png"},
   {"id": "W21", "name": "Rosca Martelo", "group": "Bíceps", "image": "/exercises-woman/rosca-martelo-halteres_9d724415.png"},
   {"id": "W22", "name": "Tríceps Francês", "group": "Tríceps", "image": "/exercises-woman/triceps-frances-halter_f733c1b9.png"},
+  {"id": "W23", "name": "Elevação de Panturrilha em Pé", "group": "Panturrilhas", "image": "/exercises-woman/panturrilha-elevacao.png"},
+  {"id": "W24", "name": "Panturrilha Sentado", "group": "Panturrilhas", "image": "/exercises-woman/panturrilha-sentado.png"},
+  {"id": "W25", "name": "Prancha", "group": "Abdômen/Core", "image": "/exercises-woman/prancha.png"},
+  {"id": "W26", "name": "Abdominal", "group": "Abdômen/Core", "image": "/exercises-woman/abdominal.png"},
+  {"id": "W27", "name": "Levantamento de Joelhos", "group": "Abdômen/Core", "image": "/exercises-woman/levantamento-de-joelhos.png"},
 ] as const;
 export type Experience = "man" | "woman";
 export const exerciseCatalog = [...manExerciseCatalog, ...womanExerciseCatalog] as const;
