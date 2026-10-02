@@ -2128,7 +2128,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
   const isTodaySelectable = selectedDate === todayIso;
 
   return (
-    <div className={`ritmo-page ${isDark ? "theme-dark" : ""}`} id="top">
+    <div data-experience={user?.experience ?? "general"} className={`ritmo-page home-page ${user?.experience === "woman" ? "theme-woman-light" : (isDark ? "theme-dark" : "")}`} id="top">
       <header className="site-header">
         <a className="brand" href="#top" aria-label="Ritmo Pro início">
           <span className="brand-mark"><img src={user?.experience === "woman" ? "/brand/ritmo-pro-woman.png" : "/brand/ritmo-pro-man.png"} alt="" /></span>
