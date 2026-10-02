@@ -581,3 +581,15 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible { 
 @media(max-width:700px){.ai-context-grid,.ai-mode-grid,.ai-plan-grid{grid-template-columns:1fr}.ai-count-row{gap:5px}.ai-count-row button{padding:10px 2px}.ai-composer{grid-template-columns:1fr}.ai-message{max-width:94%}.ai-draft-head{align-items:stretch;flex-direction:column}.ai-plan-grid li{flex-direction:column}.ai-plan-grid li small{white-space:normal}}
 /* Standardize Man exercise illustration treatment without changing movement/equipment. */
 [data-experience="man"] .exercise-image-button img,[data-experience="man"] .exercise-lightbox img{filter:none!important;background:#101510!important;border-color:color-mix(in srgb,var(--ritmo-accent,#adff3f) 30%,transparent)!important}
+
+
+/* 2026-10 profile woman contrast + fixed-header spacing */
+[data-experience="woman"] .profile-page.theme-woman-dark .profile-details strong{color:#fff7fa!important}
+[data-experience="woman"] .profile-page.theme-woman-dark .profile-details small,[data-experience="woman"] .profile-page.theme-woman-dark .card-kicker{color:#bca7b0!important}
+[data-experience="woman"] .profile-page.theme-woman-dark .outline-btn,[data-experience="woman"] .profile-page.theme-woman-dark .text-button{color:#fff7fa!important;border-color:#5b3949!important;background:#100d0f!important}
+[data-experience="woman"] .profile-page.theme-woman-dark .danger-outline{color:#ff9fc5!important;border-color:#6a3c50!important;background:#100d0f!important}
+[data-experience="woman"] .profile-page.theme-woman-dark .dark-btn{background:#7c244c!important;color:#fff7fa!important;border-color:#a43c6d!important}
+[data-experience="woman"] .profile-page.theme-woman-dark .dark-btn:disabled{color:#d7c5cc!important;opacity:.72}
+[data-experience="woman"] .profile-page.theme-woman-dark .profile-actions{border-color:#3b2932!important}
+[data-experience="woman"] .profile-page.theme-woman-dark .profile-hero{padding-top:110px!important}
+@media(max-width:580px){[data-experience="woman"] .profile-page.theme-woman-dark .profile-hero{padding-top:92px!important}}

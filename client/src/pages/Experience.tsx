@@ -7,7 +7,7 @@ import { useRitmoLanguage } from "@/lib/ritmo-language";
 export default function Experience() {
   const { user, loading, refresh } = useAuth();
   const [language] = useRitmoLanguage();
-  const t = { pt:{title:"{t.title}",lead:"{t.lead}",man:"{t.man}",woman:"Performance máxima. Glúteos e pernas em destaque."}, en:{title:"Choose your version",lead:"One account. Two training experiences.",man:"Maximum performance. Build your best V-shaped physique.",woman:"Maximum performance. Glutes and legs in focus."}, es:{title:"Elige tu versión",lead:"Una cuenta. Dos experiencias de entrenamiento.",man:"Máximo rendimiento. Construye tu mejor físico en V.",woman:"Máximo rendimiento. Glúteos y piernas en destaque."} }[language];
+  const t = { pt:{title:"Escolha sua versão",lead:"A mesma conta. Duas experiências de treino.",man:"Performance máxima. Construa um shape em V implacável.",woman:"Performance máxima. Glúteos e pernas em destaque."}, en:{title:"Choose your version",lead:"One account. Two training experiences.",man:"Maximum performance. Build your best V-shaped physique.",woman:"Maximum performance. Glutes and legs in focus."}, es:{title:"Elige tu versión",lead:"Una cuenta. Dos experiencias de entrenamiento.",man:"Máximo rendimiento. Construye tu mejor físico en V.",woman:"Máximo rendimiento. Glúteos y piernas en destaque."} }[language];
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
   const mutation = trpc.profile.setExperience.useMutation({ onSuccess: async result => { await refresh(); await utils.invalidate(); setLocation(result.experience === "woman" ? "/woman" : "/dashboard"); } });
