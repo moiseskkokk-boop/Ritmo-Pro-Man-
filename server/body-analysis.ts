@@ -3,6 +3,11 @@ import { z } from "zod";
 export const bodyAnalysisResultSchema = z.object({
   bodyFatEstimatePercent: z.number().int().min(3).max(70).nullable(),
   confidencePercent: z.number().int().min(0).max(100),
+  muscularDevelopmentScore: z.number().int().min(0).max(100).nullable().default(null),
+  developedAreas: z.array(z.object({ muscle: z.string().min(2).max(80), level: z.enum(["moderate","good","high"]), reason: z.string().min(5).max(240) })).max(8).default([]),
+  developmentPriorities: z.array(z.object({ muscle: z.string().min(2).max(80), visualDevelopment: z.enum(["low","moderate","good","high"]), priority: z.enum(["low","moderate","high"]), reason: z.string().min(5).max(300) })).max(8).default([]),
+  proportionAssessment: z.string().min(20).max(1000).default("Sem avaliação proporcional estruturada disponível para este registo."),
+  objectiveImpact: z.string().min(20).max(1000).default("Este registo anterior não contém impacto do objetivo estruturado."),
   observations: z.string().min(20).max(1200),
   performanceAlignment: z.string().min(20).max(1200),
   trainingConsiderations: z.array(z.string().min(5).max(240)).max(5),
