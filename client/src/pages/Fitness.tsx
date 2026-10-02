@@ -926,20 +926,54 @@ function History({
     </>
   );
 }
-function Dashboard({ c }: { data: Overview; c: Copy; language: Language }) {
-  return (
-    <>
-      <section className={panel}>
-        <h1>{c.dashboard}</h1>
-      </section>
-      <div className="fitness-grid dashboard-primary-grid">
-        <section className={panel}><h2>{c.training}</h2><Link href="/treino">{c.training} →</Link></section>
-        <section className={panel}><h2>AI Coach</h2><p>{c.coachHelp}</p><Link href="/coach">{c.ask} →</Link></section>
-        <section className={panel}><h2>{c.progress}</h2><Link href="/historico">{c.progress} →</Link></section>
-        <section className={panel}><h2>{c.profile}</h2><Link href="/perfil">{c.profile} →</Link></section>
-      </div>
-    </>
-  );
+function Dashboard({ c, language }: { data: Overview; c: Copy; language: Language }) {
+  const copy = language === "en" ? {
+    title: "Your Ritmo Pro",
+    lead: "Choose where you want to go.",
+    cards: [
+      ["/treino", c.training, "Run and log today's workout."],
+      ["/treinos", c.library, "Browse your workouts and exercises."],
+      ["/corpo", c.body, "Follow your body evolution."],
+      ["/historico", c.history, "Review previous workouts and records."],
+      ["/coach", "AI Coach", "Talk to your performance intelligence."],
+      ["/perfil", c.profile, "Your data, goals and preferences."],
+      ["/analise", "Monthly assessment", "Update the data that guides your progress."],
+      ["/assinatura", "Subscription", "View and manage your plan."],
+      ["/escolher-versao", "Switch version", "Switch between Ritmo Man and Ritmo Woman."],
+    ],
+  } : language === "es" ? {
+    title: "Tu Ritmo Pro",
+    lead: "Elige a dónde quieres ir.",
+    cards: [
+      ["/treino", c.training, "Realiza y registra el entrenamiento de hoy."],
+      ["/treinos", c.library, "Consulta tus entrenamientos y ejercicios."],
+      ["/corpo", c.body, "Sigue tu evolución corporal."],
+      ["/historico", c.history, "Consulta entrenamientos y registros anteriores."],
+      ["/coach", "AI Coach", "Habla con tu inteligencia de rendimiento."],
+      ["/perfil", c.profile, "Tus datos, objetivos y preferencias."],
+      ["/analise", "Evaluación mensual", "Actualiza los datos que orientan tu evolución."],
+      ["/assinatura", "Suscripción", "Consulta y gestiona tu plan."],
+      ["/escolher-versao", "Cambiar versión", "Cambia entre Ritmo Man y Ritmo Woman."],
+    ],
+  } : {
+    title: "Seu Ritmo Pro",
+    lead: "Escolha para onde você quer ir.",
+    cards: [
+      ["/treino", c.training, "Execute e registre o treino de hoje."],
+      ["/treinos", c.library, "Consulte seus treinos e exercícios."],
+      ["/corpo", c.body, "Acompanhe sua evolução corporal."],
+      ["/historico", c.history, "Veja seus treinos e registros anteriores."],
+      ["/coach", "AI Coach", "Converse com sua inteligência de performance."],
+      ["/perfil", c.profile, "Seus dados, objetivos e preferências."],
+      ["/analise", "Avaliação mensal", "Atualize os dados que orientam sua evolução."],
+      ["/assinatura", "Assinatura", "Consulte e gerencie seu plano."],
+      ["/escolher-versao", "Trocar versão", "Alterne entre Ritmo Man e Ritmo Woman."],
+    ],
+  };
+  return <section className="ritmo-home-dashboard" aria-labelledby="ritmo-home-title">
+    <div className="ritmo-home-intro"><p className="fitness-kicker">RITMO PRO</p><h1 id="ritmo-home-title">{copy.title}</h1><p>{copy.lead}</p></div>
+    <div className="ritmo-home-grid">{copy.cards.map(([href,title,description]) => <Link className="ritmo-home-card" href={href} key={href}><span className="ritmo-home-card-mark" aria-hidden="true">↗</span><h2>{title}</h2><p>{description}</p></Link>)}</div>
+  </section>;
 }
 
 export default function Fitness({
