@@ -9,6 +9,11 @@ async function migrate() {
   if (!url) throw new Error("Missing database configuration");
   const pool = new Pool(postgresConnectionOptions(url));
   try {
+    // Repair additive columns required by the current app before Drizzle reads them.
+    // This is idempotent and protects production from an older/stale migration journal.
+    await pool.query(`ALTER TABLE "body_analyses" ADD COLUMN IF NOT EXISTS "assessmentWeekStart" varchar(10)`);
+    await pool.query(`ALTER TABLE "body_analyses" ADD COLUMN IF NOT EXISTS "experience" varchar(16) NOT NULL DEFAULT 'man'`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS "body_analyses_user_week" ON "body_analyses" ("userId", "assessmentWeekStart")`);
     const db = drizzle(pool);
     await runMigrations(db, { migrationsFolder: "drizzle-pg" });
     console.log("Migration validation completed.");
