@@ -134,6 +134,8 @@ export const bodyAnalyses = pgTable("body_analyses", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull(),
   analysisMonth: varchar("analysisMonth", { length: 10 }).notNull(),
+  assessmentWeekStart: varchar("assessmentWeekStart", { length: 10 }),
+  experience: varchar("experience", { length: 16, enum: ["man", "woman"] }).notNull().default("man"),
   objective: varchar("objective", { length: 80 }),
   photoKeys: text("photoKeys").notNull(),
   bodyFatEstimatePercent: integer("bodyFatEstimatePercent"),

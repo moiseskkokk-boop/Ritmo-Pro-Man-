@@ -472,7 +472,7 @@ export const appRouter = router({
     today: protectedProcedure.query(() => ({ activityDate: lisbonDate(), weekStart: currentWeekStart(), weekEnd: currentWeekEnd() })),
     currentAssessment: protectedProcedure.input(z.object({ weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })).query(({ ctx, input }) =>
       getCurrentAssessment(ctx.user.id, input.weekStart)),
-    assessmentHistory: protectedProcedure.query(({ ctx }) => getAssessmentHistory(ctx.user.id)),
+    assessmentHistory: protectedProcedure.query(async ({ ctx }) => { const rows=await getAssessmentHistory(ctx.user.id); const bodies=await getBodyAnalysisHistory(ctx.user.id,52); return rows.map(row=>{ const body=bodies.find(b=>b.assessmentWeekStart===row.weekStart); let photoCount=0; if(body)try{photoCount=Object.keys(JSON.parse(body.photoKeys)).length}catch{} return {...row,experience:body?.experience??ctx.user.experience??"man",photoCount,bodyAnalysis:body?bodyAnalysisResultSchema.parse(JSON.parse(body.analysisJson)):null}; }); }),
     saveAssessment: protectedProcedure.input(z.object({
       weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
       objective: z.string().min(1).max(80), heightCm: z.number().int().min(100).max(250), weightKg: z.number().min(25).max(400).nullable().optional(),
@@ -544,7 +544,7 @@ export const appRouter = router({
         }
         const saved = await saveBodyAnalysis({
           userId: ctx.user.id, analysisMonth: weekStart, objective: assessment?.objective ?? null,
-          photoKeys: JSON.stringify(storedKeys), bodyFatEstimatePercent: result.bodyFatEstimatePercent,
+          assessmentWeekStart: weekStart, experience: ctx.user.experience ?? "man", photoKeys: JSON.stringify(storedKeys), bodyFatEstimatePercent: result.bodyFatEstimatePercent,
           confidencePercent: result.confidencePercent, analysisJson: JSON.stringify(result),
         });
         if (previousThisMonth) {

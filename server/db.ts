@@ -490,7 +490,7 @@ export async function saveBodyAnalysis(input: Omit<BodyAnalysis, "id" | "created
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   await db.insert(bodyAnalyses).values(input).onConflictDoUpdate({ target: [bodyAnalyses.userId, bodyAnalyses.analysisMonth], set: {
-    objective: input.objective, photoKeys: input.photoKeys,
+    objective: input.objective, assessmentWeekStart: input.assessmentWeekStart, experience: input.experience, photoKeys: input.photoKeys,
     bodyFatEstimatePercent: input.bodyFatEstimatePercent,
     confidencePercent: input.confidencePercent, analysisJson: input.analysisJson,
     updatedAt: new Date(),
