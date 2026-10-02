@@ -304,5 +304,5 @@ export type UserSubscription = typeof userSubscriptions.$inferSelect;
 
 export const workoutAiWeeks = pgTable("workout_ai_weeks", {
   userId: integer("userId").notNull(), weekStart: varchar("weekStart", { length: 10 }).notNull(),
-  reservationId: varchar("reservationId", { length: 36 }).notNull(), createdAt: timestamp("createdAt").defaultNow().notNull(),
+  attempts: integer("attempts").default(0).notNull(), createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, table => ({ userWeek: uniqueIndex("workout_ai_weeks_user_week").on(table.userId, table.weekStart) }));

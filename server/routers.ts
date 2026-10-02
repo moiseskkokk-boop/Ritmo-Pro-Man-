@@ -1,5 +1,5 @@
 import { fitnessRouter, assertToday } from "./fitness";
-import { reserveWorkoutWeek } from "./workout-ai-limit";
+import { reserveWorkoutWeek, getWorkoutWeekAttempts } from "./workout-ai-limit";
 import { and, eq } from "drizzle-orm";
 import { trainingSessions, fitnessRevisions } from "../drizzle/schema";
 import { getDb } from "./db";
@@ -424,11 +424,11 @@ export const appRouter = router({
       const [assessment, bodyHistory, savedPlans] = await Promise.all([getCurrentAssessment(ctx.user.id, weekStart), getBodyAnalysisHistory(ctx.user.id, 2), getWorkoutPlans(ctx.user.id, ctx.user.experience ?? "man")]);
       const latestBody = bodyHistory[0] ?? null;
       let photoCount = 0; if (latestBody) { try { photoCount = Object.keys(JSON.parse(latestBody.photoKeys)).length; } catch {} }
-      return { profile: true, assessment: Boolean(assessment), bodyAnalysis: Boolean(latestBody), photos: photoCount, analysisWeek: latestBody?.analysisMonth ?? null, objective: latestBody?.objective ?? assessment?.objective ?? null, savedPlans: savedPlans.length };
+      const attemptsUsed=await getWorkoutWeekAttempts(ctx.user.id); return { profile: true, assessment: Boolean(assessment), assessmentData: assessment ? {heightCm:assessment.heightCm,weightKg:assessment.weightKg,sleep:assessment.sleep,recovery:assessment.recovery,fatigue:assessment.fatigue,objective:assessment.objective}:null, bodyAnalysis: Boolean(latestBody), photos: photoCount, analysisWeek: latestBody?.analysisMonth ?? null, objective: latestBody?.objective ?? assessment?.objective ?? null, savedPlans: savedPlans.length, attemptsUsed, attemptsRemaining: Math.max(0,3-attemptsUsed) };
     }),
     generateProgramWithAI: protectedProcedure.input(z.object({ trainingCount:z.number().int().min(1).max(7), userMessage:z.string().trim().min(1).max(1200), language:z.enum(["pt","en","es"]), previousPlans:z.array(workoutPlanInputSchema).max(7).default([]) })).mutation(async ({ctx,input})=>{
       await requirePremium(ctx.user.id); if(!ENV.geminiApiKey) throw new TRPCError({code:"PRECONDITION_FAILED",message:"O serviço de IA não está configurado."});
-      const release = input.previousPlans.length ? null : await reserveWorkoutWeek(ctx.user.id);
+      const release = await reserveWorkoutWeek(ctx.user.id);
       try { const today=lisbonDate(), weekStart=currentWeekStart(); const fromDate=new Date(`${today}T12:00:00Z`); fromDate.setUTCDate(fromDate.getUTCDate()-29); const from=fromDate.toISOString().slice(0,10);
         const [assessment,week,daily,history,bodyHistory,savedPlans,sessionTraining]=await Promise.all([getCurrentAssessment(ctx.user.id,weekStart),getWeeklyActivityAnalysis(ctx.user.id,weekStart,today,weekStart,ctx.user.experience??"man"),getDailyHistory(ctx.user.id,from,today),getAssessmentHistory(ctx.user.id,6),getBodyAnalysisHistory(ctx.user.id,2),getWorkoutPlans(ctx.user.id,ctx.user.experience??"man"),getRecentTrainingContext(ctx.user.id,from,today,ctx.user.experience??"man")]);
         const body=bodyHistory[0]?JSON.parse(bodyHistory[0].analysisJson):null; const data={currentAssessment:assessment??null,latestBodyAnalysis:body,weeklyTrainingAndWearableData:week,recentTrainingSessions:sessionTraining,recentDailyLogs:daily,previousWeeklyAssessments:history,priorCustomizations:savedPlans.slice(0,8).map(p=>({name:p.name,focusGroup:p.focusGroup,source:p.source,exercises:JSON.parse(p.exercisesJson)}))};
