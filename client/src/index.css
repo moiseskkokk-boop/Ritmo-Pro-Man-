@@ -623,3 +623,12 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible { 
 [data-experience="woman"] .ritmo-loader-line i{background:linear-gradient(90deg,var(--woman-pink),var(--woman-violet))}
 [data-experience="woman"] :focus-visible{outline:2px solid var(--woman-pink)!important;outline-offset:2px}
 @media(max-width:580px){[data-experience="woman"] .theme-woman-dark .analysis-card,[data-experience="woman"] .theme-woman-dark .analysis-panel{border-radius:24px}}
+
+/* Smart header refresh: refetches server data without destroying local form state. */
+.ritmo-refresh-button{position:relative;display:grid;width:46px;height:46px;place-items:center;border:1px solid color-mix(in srgb,var(--accent,#b7f34a) 28%,#5b655f);border-radius:14px;background:transparent;color:var(--accent,#b7f34a);transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease;flex:0 0 auto}
+.ritmo-refresh-button:active{transform:scale(.94)}.ritmo-refresh-button:disabled{cursor:wait;opacity:.75}
+.ritmo-refresh-spin{animation:ritmo-refresh-spin .7s linear infinite}@keyframes ritmo-refresh-spin{to{transform:rotate(360deg)}}
+.ritmo-refresh-ok{position:absolute;right:-3px;bottom:-3px;display:grid;width:17px;height:17px;place-items:center;border-radius:50%;background:#111;color:#fff;font-size:10px;font-weight:900}
+[data-experience="woman"] .ritmo-refresh-button{color:#ff79b0;border-color:#6b3a50;box-shadow:0 0 18px rgba(255,121,176,.06)}
+[data-experience="man"] .ritmo-refresh-button{color:#b7f34a}
+@media(max-width:580px){.ritmo-refresh-button{width:42px;height:42px;border-radius:13px}.ritmo-global-actions{gap:8px}}

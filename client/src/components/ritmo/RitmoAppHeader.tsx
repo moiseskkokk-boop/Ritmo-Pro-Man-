@@ -1,6 +1,8 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Link, useLocation } from "wouter";
 import { useState } from "react";
+import { RefreshCw } from "lucide-react";
+import { trpc } from "@/lib/trpc";
 import { useRitmoLanguage } from "@/lib/ritmo-language";
 
 const labels = {
@@ -17,6 +19,10 @@ export default function RitmoAppHeader() {
   const [open, setOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [lang, setLang] = useRitmoLanguage();
+  const utils = trpc.useUtils();
+  const [refreshing,setRefreshing]=useState(false);
+  const [refreshOk,setRefreshOk]=useState(false);
+  const refresh=async()=>{if(refreshing)return;setRefreshing(true);setRefreshOk(false);try{await utils.invalidate();setRefreshOk(true);window.setTimeout(()=>setRefreshOk(false),1400)}finally{setRefreshing(false)}};
   if (!user) return null;
   const woman = user.experience === "woman";
   const name = user.name?.trim() || user.email?.split("@")[0] || "Cliente";
@@ -31,6 +37,7 @@ export default function RitmoAppHeader() {
       <Link href="/escolher-versao" onClick={()=>setOpen(false)}>{lang==="pt"?"Trocar versão":lang==="es"?"Cambiar versión":"Switch version"}</Link>
     </nav>
     <div className="ritmo-global-actions">
+      <button type="button" className="ritmo-refresh-button" aria-label={lang==="pt"?"Atualizar página":lang==="es"?"Actualizar página":"Refresh page"} title={refreshOk?(lang==="pt"?"Atualizado":lang==="es"?"Actualizado":"Updated"):undefined} disabled={refreshing} onClick={()=>void refresh()}><RefreshCw size={19} className={refreshing?"ritmo-refresh-spin":""}/>{refreshOk&&<span className="ritmo-refresh-ok">✓</span>}</button>
       <select aria-label="Idioma" value={lang} onChange={e=>setLang(e.target.value as Lang)}><option value="pt">PT</option><option value="en">EN</option><option value="es">ES</option></select>
       <div className="ritmo-account-wrap"><button className="ritmo-global-account" aria-expanded={accountOpen} onClick={()=>setAccountOpen(v=>!v)}>{user.profileImageUrl ? <img className="ritmo-global-avatar" src={user.profileImageUrl} alt={name}/> : <span>{name.slice(0,1).toUpperCase()}</span>}<b>{name}</b></button>{accountOpen&&<div className="ritmo-account-menu"><Link href="/perfil" onClick={()=>setAccountOpen(false)}>{labels[lang][1]}</Link><Link href="/escolher-versao" onClick={()=>setAccountOpen(false)}>{lang==="pt"?"Trocar versão":lang==="es"?"Cambiar versión":"Switch version"}</Link><button onClick={()=>logout()}>{lang==="pt"?"Sair":lang==="es"?"Salir":"Sign out"}</button></div>}</div>
     </div>
