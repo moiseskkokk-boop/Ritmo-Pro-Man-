@@ -38,6 +38,7 @@ beforeAll(async () => {
   await pg.exec(readFileSync("drizzle-pg/0001_sessions_ai_week.sql", "utf8"));
   await pg.exec(readFileSync("drizzle-pg/0002_session_water_cardio.sql", "utf8"));
   await pg.exec(readFileSync("drizzle-pg/0004_experience_parity.sql", "utf8"));
+  await pg.exec(readFileSync("drizzle-pg/0005_weekly_body_context.sql", "utf8"));
   expect((await pg.query(`SELECT * FROM training_sessions WHERE "userId"=99`)).rows).toMatchObject([{ experience: "man", completedExercisesJson: "[]" }]);
 }, 30000);
 afterAll(async () => { await pg.close(); process.env.DATABASE_URL = originalUrl; ENV.geminiApiKey = originalKey; });

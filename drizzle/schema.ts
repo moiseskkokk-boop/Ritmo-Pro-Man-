@@ -86,6 +86,7 @@ export const weeklyAssessments = pgTable("weekly_assessments", {
   weekStart: varchar("weekStart", { length: 10 }).notNull(),
   objective: varchar("objective", { length: 80 }).notNull(),
   heightCm: integer("heightCm").notNull(),
+  weightKg: varchar("weightKg", { length: 10 }),
   benchPressLevel: varchar("benchPressLevel", { length: 80 }).notNull(),
   squatLevel: varchar("squatLevel", { length: 80 }).notNull(),
   cardio: varchar("cardio", { length: 40 }).notNull(),
@@ -132,7 +133,7 @@ export const workoutPlans = pgTable("workout_plans", {
 export const bodyAnalyses = pgTable("body_analyses", {
   id: serial("id").primaryKey(),
   userId: integer("userId").notNull(),
-  analysisMonth: varchar("analysisMonth", { length: 7 }).notNull(),
+  analysisMonth: varchar("analysisMonth", { length: 10 }).notNull(),
   objective: varchar("objective", { length: 80 }),
   photoKeys: text("photoKeys").notNull(),
   bodyFatEstimatePercent: integer("bodyFatEstimatePercent"),

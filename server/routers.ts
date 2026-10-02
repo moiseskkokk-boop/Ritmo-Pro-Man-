@@ -424,7 +424,7 @@ export const appRouter = router({
       const [assessment, bodyHistory, savedPlans] = await Promise.all([getCurrentAssessment(ctx.user.id, weekStart), getBodyAnalysisHistory(ctx.user.id, 2), getWorkoutPlans(ctx.user.id, ctx.user.experience ?? "man")]);
       const latestBody = bodyHistory[0] ?? null;
       let photoCount = 0; if (latestBody) { try { photoCount = Object.keys(JSON.parse(latestBody.photoKeys)).length; } catch {} }
-      return { profile: true, assessment: Boolean(assessment), bodyAnalysis: Boolean(latestBody), photos: photoCount, analysisMonth: latestBody?.analysisMonth ?? null, objective: latestBody?.objective ?? assessment?.objective ?? null, savedPlans: savedPlans.length };
+      return { profile: true, assessment: Boolean(assessment), bodyAnalysis: Boolean(latestBody), photos: photoCount, analysisWeek: latestBody?.analysisMonth ?? null, objective: latestBody?.objective ?? assessment?.objective ?? null, savedPlans: savedPlans.length };
     }),
     generateProgramWithAI: protectedProcedure.input(z.object({ trainingCount:z.number().int().min(1).max(7), userMessage:z.string().trim().min(1).max(1200), language:z.enum(["pt","en","es"]), previousPlans:z.array(workoutPlanInputSchema).max(7).default([]) })).mutation(async ({ctx,input})=>{
       await requirePremium(ctx.user.id); if(!ENV.geminiApiKey) throw new TRPCError({code:"PRECONDITION_FAILED",message:"O serviço de IA não está configurado."});
@@ -475,11 +475,11 @@ export const appRouter = router({
     assessmentHistory: protectedProcedure.query(({ ctx }) => getAssessmentHistory(ctx.user.id)),
     saveAssessment: protectedProcedure.input(z.object({
       weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-      objective: z.string().min(1).max(80), heightCm: z.number().int().min(100).max(250),
+      objective: z.string().min(1).max(80), heightCm: z.number().int().min(100).max(250), weightKg: z.number().min(25).max(400).nullable().optional(),
       benchPressLevel: z.string().min(1).max(80), squatLevel: z.string().min(1).max(80),
       cardio: z.string().min(1).max(40), sleep: z.string().min(1).max(40),
       recovery: z.string().min(1).max(40), fatigue: z.string().min(1).max(100),
-    })).mutation(({ ctx, input }) => saveAssessment({ ...input, userId: ctx.user.id })),
+    })).mutation(({ ctx, input }) => saveAssessment({ ...input, weightKg: input.weightKg == null ? null : String(input.weightKg), userId: ctx.user.id })),
     clearCurrentAssessment: protectedProcedure.input(z.object({ weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })).mutation(({ ctx, input }) =>
       clearCurrentAssessment(ctx.user.id, input.weekStart)),
     deleteAllMyData: protectedProcedure.mutation(async ({ ctx }) => {
@@ -529,21 +529,21 @@ export const appRouter = router({
         getWeeklyActivityAnalysis(ctx.user.id, weekStart, today, weekStart, ctx.user.experience ?? "man"),
         getBodyAnalysisHistory(ctx.user.id, 3),
       ]);
-      const previousThisMonth = history.find(row => row.analysisMonth === today.slice(0, 7));
+      const previousThisMonth = history.find(row => row.analysisMonth === weekStart);
       const nutritionHydration = daily.map(log => ({ date: log.activityDate, meals: log.mealsNote, waterLiters: log.waterLiters, cardioMinutes: log.cardioMinutes, recovery: log.recovery, workoutId: log.workoutId, completedCount: log.completedCount }));
       const previousAnalysis = history[0] ? JSON.parse(history[0].analysisJson) as unknown : null;
       const result = await runBodyAnalysis({
         language: input.language, experience: ctx.user.experience ?? "man", images,
-        context: { objectiveAndAssessment: assessment ? { objective: assessment.objective, heightCm: assessment.heightCm, benchPressLevel: assessment.benchPressLevel, squatLevel: assessment.squatLevel, cardio: assessment.cardio, sleep: assessment.sleep, recovery: assessment.recovery, fatigue: assessment.fatigue } : null, currentWeek: weekly, dailyRecords: nutritionHydration, previousMonthlyAnalysis: previousAnalysis },
+        context: { objectiveAndAssessment: assessment ? { objective: assessment.objective, heightCm: assessment.heightCm, weightKg: assessment.weightKg ? Number(assessment.weightKg) : null, benchPressLevel: assessment.benchPressLevel, squatLevel: assessment.squatLevel, cardio: assessment.cardio, sleep: assessment.sleep, recovery: assessment.recovery, fatigue: assessment.fatigue } : null, currentWeek: weekly, dailyRecords: nutritionHydration, previousWeeklyAnalysis: previousAnalysis },
       });
       const storedKeys: Record<string, string> = {};
       try {
         for (const image of images) {
-          const uploaded = await storagePut(`body-analysis/${ctx.user.id}/${today.slice(0, 7)}/${randomBytes(12).toString("hex")}-${image.slot}.${image.mimeType === "image/png" ? "png" : image.mimeType === "image/webp" ? "webp" : "jpg"}`, image.data, image.mimeType);
+          const uploaded = await storagePut(`body-analysis/${ctx.user.id}/${weekStart}/${randomBytes(12).toString("hex")}-${image.slot}.${image.mimeType === "image/png" ? "png" : image.mimeType === "image/webp" ? "webp" : "jpg"}`, image.data, image.mimeType);
           storedKeys[image.slot] = uploaded.key;
         }
         const saved = await saveBodyAnalysis({
-          userId: ctx.user.id, analysisMonth: today.slice(0, 7), objective: assessment?.objective ?? null,
+          userId: ctx.user.id, analysisMonth: weekStart, objective: assessment?.objective ?? null,
           photoKeys: JSON.stringify(storedKeys), bodyFatEstimatePercent: result.bodyFatEstimatePercent,
           confidencePercent: result.confidencePercent, analysisJson: JSON.stringify(result),
         });

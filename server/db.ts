@@ -387,7 +387,7 @@ export async function getAssessmentHistory(userId: number, limit = 12) {
 }
 
 export async function saveAssessment(input: {
-  userId: number; weekStart: string; objective: string; heightCm: number;
+  userId: number; weekStart: string; objective: string; heightCm: number; weightKg?: string | null;
   benchPressLevel: string; squatLevel: string; cardio: string; sleep: string;
   recovery: string; fatigue: string;
 }) {
@@ -395,7 +395,7 @@ export async function saveAssessment(input: {
   if (!db) throw new Error("Database unavailable");
   await db.insert(weeklyAssessments).values(input).onConflictDoUpdate({ target: [weeklyAssessments.userId, weeklyAssessments.weekStart],
     set: {
-      objective: input.objective, heightCm: input.heightCm,
+      objective: input.objective, heightCm: input.heightCm, weightKg: input.weightKg ?? null,
       benchPressLevel: input.benchPressLevel, squatLevel: input.squatLevel,
       cardio: input.cardio, sleep: input.sleep, recovery: input.recovery,
       fatigue: input.fatigue, updatedAt: new Date(),

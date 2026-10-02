@@ -326,8 +326,8 @@ const copy = {
       "Uma sessão complementar que só aparece quando os seus dados indicam uma prioridade real de desenvolvimento. Os 4 dias principais continuam sendo a base.",
     day5Status: "NÃO ATIVADO",
     day5Action: "Ver como funciona",
-    photosKicker: "/ ACOMPANHAMENTO MENSAL",
-    photosTitle: "Avaliação mensal · 4 fotos",
+    photosKicker: "/ ACOMPANHAMENTO SEMANAL",
+    photosTitle: "Avaliação semanal · 4 fotos",
     photosLead:
       "Telefone reto e centrado, postura natural, sem pose. Mulher: top e shorts curtos. Homem: shorts curtos, sem camisa. Estimativa visual, não diagnóstico.",
     selectPhoto: "Selecionar foto",
@@ -367,8 +367,8 @@ const copy = {
       "A complementary session appears only when your data shows a real development priority. The 4 main days remain the foundation.",
     day5Status: "NOT ACTIVE",
     day5Action: "See how it works",
-    photosKicker: "/ MONTHLY TRACKING",
-    photosTitle: "Monthly assessment · 4 photos",
+    photosKicker: "/ WEEKLY TRACKING",
+    photosTitle: "Weekly assessment · 4 photos",
     photosLead:
       "Phone straight and centered, natural stance, no pose. Women: top and short shorts. Men: short shorts, shirtless. Visual estimate, not diagnosis.",
     selectPhoto: "Select photo",
@@ -409,8 +409,8 @@ const copy = {
       "Una sesión complementaria aparece solo cuando tus datos muestran una prioridad real. Los 4 días principales siguen siendo la base.",
     day5Status: "NO ACTIVADO",
     day5Action: "Ver cómo funciona",
-    photosKicker: "/ SEGUIMIENTO MENSUAL",
-    photosTitle: "Evaluación mensual · 4 fotos",
+    photosKicker: "/ SEGUIMIENTO SEMANAL",
+    photosTitle: "Evaluación semanal · 4 fotos",
     photosLead:
       "Teléfono recto y centrado, postura natural, sin posar. Mujer: top y pantalón corto. Hombre: pantalón corto, sin camiseta. Estimación visual, no diagnóstico.",
     selectPhoto: "Seleccionar foto",
@@ -455,7 +455,7 @@ const ui = {
     day5Decision: "DIA 5 · DECISÃO BASEADA EM DADOS",
     specialization: "Especialização sem excesso.",
     day5Intro:
-      "A IA compara fotos mensais, proporções, objetivo, cargas, repetições, volume semanal, performance, recuperação e histórico.",
+      "A IA compara fotos semanais, proporções, objetivo, cargas, repetições, volume semanal, performance, recuperação e histórico.",
     informed: "Dado informado",
     informedLead: "peso, objetivo e registros fornecidos por você.",
     visual: "Estimativa visual",
@@ -508,7 +508,7 @@ const ui = {
     day5Decision: "DAY 5 · DATA-BASED DECISION",
     specialization: "Specialization without excess.",
     day5Intro:
-      "AI compares monthly photos, proportions, goal, loads, reps, weekly volume, performance, recovery and history.",
+      "AI compares weekly photos, proportions, goal, loads, reps, weekly volume, performance, recovery and history.",
     informed: "Provided data",
     informedLead: "weight, goal and records provided by you.",
     visual: "Visual estimate",
@@ -562,7 +562,7 @@ const ui = {
     day5Decision: "DÍA 5 · DECISIÓN BASADA EN DATOS",
     specialization: "Especialización sin exceso.",
     day5Intro:
-      "La IA compara fotos mensuales, proporciones, objetivo, cargas, repeticiones, volumen semanal, rendimiento, recuperación e historial.",
+      "La IA compara fotos semanales, proporciones, objetivo, cargas, repeticiones, volumen semanal, rendimiento, recuperación e historial.",
     informed: "Dato informado",
     informedLead: "peso, objetivo y registros proporcionados por ti.",
     visual: "Estimación visual",
@@ -2632,21 +2632,21 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
               </h1>
               <p>
                 {language === "en"
-                  ? "Your assessment, monthly photos and optional fifth-day recommendation in one focused space."
+                  ? "Your assessment, weekly photos and optional fifth-day recommendation in one focused space."
                   : language === "es"
-                    ? "Tu evaluación, fotos mensuales y recomendación opcional del quinto día en un solo espacio."
-                    : "Sua avaliação, fotos mensais e recomendação opcional do quinto dia em um só espaço."}
+                    ? "Tu evaluación, fotos semanales y recomendación opcional del quinto día en un solo espacio."
+                    : "Sua avaliação, fotos semanais e recomendação opcional do quinto dia em um só espaço."}
               </p>
             </section>
             <section className="assessment-section section-shell">
               <div className="assessment-card">
                 <div className="assessment-heading">
                   <div>
-                    <div className="section-kicker green">/ {language === "en" ? "MONTHLY ASSESSMENT" : language === "es" ? "EVALUACIÓN MENSUAL" : "AVALIAÇÃO MENSAL"}</div>
+                    <div className="section-kicker green">/ {language === "en" ? "WEEKLY ASSESSMENT" : language === "es" ? "EVALUACIÓN SEMANAL" : "AVALIAÇÃO SEMANAL"}</div>
                     <h2>{language === "en" ? "Body analysis and evolution" : language === "es" ? "Análisis corporal y evolución" : "Análise corporal e evolução"}</h2>
-                    <p>{language === "en" ? "Record your monthly photos below and use Gemini to compare your evolution. Weekly performance and recovery remain in the separate Weekly Assessment." : language === "es" ? "Registra tus fotos mensuales abajo y usa Gemini para comparar tu evolución. Rendimiento y recuperación semanal permanecen en la Evaluación Semanal separada." : "Registre as fotos mensais abaixo e use o Gemini para comparar sua evolução. Performance e recuperação da semana continuam na Avaliação Semanal separada."}</p>
+                    <p>{language === "en" ? "Record your weekly photos below and use Gemini to compare your evolution. Weekly performance and recovery remain in the separate Weekly Assessment." : language === "es" ? "Registra tus fotos semanales abajo y usa Gemini para comparar tu evolución. Rendimiento y recuperación semanal permanecen en la Evaluación Semanal separada." : "Registre as fotos semanais abaixo e use o Gemini para comparar sua evolução. Performance e recuperação da semana continuam na Avaliação Semanal separada."}</p>
                   </div>
-                  <span className="status-chip ready">{language === "en" ? "MONTHLY" : language === "es" ? "MENSUAL" : "MENSAL"}</span>
+                  <span className="status-chip ready">{language === "en" ? "MONTHLY" : language === "es" ? "SEMANAL" : "SEMANAL"}</span>
                 </div>
                 <div className="privacy-note"><strong>{privacy.privacyTitle}</strong><p>{privacy.privacyText}</p></div>
                 <div className="assessment-actions">
@@ -2746,7 +2746,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
                     ? (language === "pt" ? "Percentual não estimado: imagem/dados insuficientes." : language === "es" ? "Porcentaje no estimado: imagen/datos insuficientes." : "Percentage not estimated: insufficient image/data.")
                     : `${entry.bodyFatEstimatePercent}% · ${language === "pt" ? "estimativa visual" : language === "es" ? "estimación visual" : "visual estimate"}`}
                     {entry.bodyFatEstimatePercent != null && ` · ${entry.confidencePercent}% ${language === "pt" ? "de confiança estimada" : language === "es" ? "de confianza estimada" : "estimated confidence"}`}
-                    {delta != null && ` · ${language === "pt" ? `variação mensal ${delta > 0 ? "+" : ""}${delta} p.p.` : language === "es" ? `cambio mensual ${delta > 0 ? "+" : ""}${delta} p.p.` : `monthly change ${delta > 0 ? "+" : ""}${delta} pp`}`}</p>
+                    {delta != null && ` · ${language === "pt" ? `variação mensal ${delta > 0 ? "+" : ""}${delta} p.p.` : language === "es" ? `cambio semanal ${delta > 0 ? "+" : ""}${delta} p.p.` : `weekly change ${delta > 0 ? "+" : ""}${delta} pp`}`}</p>
                   <p>{result.observations}</p>
                   <p><strong>{language === "pt" ? "Performance" : language === "es" ? "Rendimiento" : "Performance"}:</strong> {result.performanceAlignment}</p>
                   <ul>{result.trainingConsiderations.map((item, itemIndex) => <li key={itemIndex}>{item}</li>)}</ul>
