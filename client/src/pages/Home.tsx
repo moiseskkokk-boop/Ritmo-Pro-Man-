@@ -1581,7 +1581,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
   const [consentChecked, setConsentChecked] = useState(false);
   const [day5Open, setDay5Open] = useState(false);
   const [day5CheckOpen, setDay5CheckOpen] = useState(false);
-  const [day5Readiness, setDay5Readiness] = useState({ sleepQuality: "good" as "very_good"|"good"|"fair"|"poor", restSufficient: "yes" as "yes"|"partial"|"no", muscleRecovery: "recovered" as "recovered"|"some_fatigue"|"tired"|"very_fatigued", readiness: 4, perceivedPriority: "" });
+  const [day5Readiness, setDay5Readiness] = useState({ weeklyFeeling: "", perceivedCapacity: "yes" as "yes"|"maybe"|"no", soreness: false, sorenessRegions: [] as string[], sorenessIntensity: "light" as "light"|"moderate"|"strong", selectedWorkoutIds: [] as number[], perceivedPriority: "" });
   const [day5Saved, setDay5Saved] = useState(false);
   const [language, setLanguage] = useState<Language>(
     () => (localStorage.getItem("ritmo-mf-language") as Language) || "pt"
@@ -1726,6 +1726,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
     { enabled: Boolean(user) }
   );
   const bodyAnalysisHistory = trpc.progress.bodyAnalysisHistory.useQuery(undefined, { enabled: Boolean(user), staleTime: 0 });
+  const day5WorkoutPlans = trpc.workouts.list.useQuery(undefined, { enabled: Boolean(user && day5CheckOpen) });
   const saveAssessmentMutation = trpc.progress.saveAssessment.useMutation({
     onSuccess: () => {
       setAssessmentDirty(false);
@@ -2834,22 +2835,16 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
         </div>
       )}
       {day5CheckOpen && (
-        <div className="modal-backdrop" onClick={() => setDay5CheckOpen(false)}>
-          <div className="modal-card" onClick={event => event.stopPropagation()}>
-            <button className="modal-close" onClick={() => setDay5CheckOpen(false)}>×</button>
-            <p className="eyebrow green-text">DIA 5 · CHECK-IN DE RECUPERAÇÃO</p>
-            <h2>Antes de decidir se deve treinar</h2>
-            <p>O RITMO vai cruzar estas respostas com os treinos concluídos, volume, análise corporal, evolução e dados disponíveis.</p>
-            <div className="assessment-grid">
-              <label>Como dormiu?<select value={day5Readiness.sleepQuality} onChange={e => setDay5Readiness(v => ({...v,sleepQuality:e.target.value as typeof v.sleepQuality}))}><option value="very_good">Muito bem</option><option value="good">Bem</option><option value="fair">Razoável</option><option value="poor">Mal</option></select></label>
-              <label>Teve descanso suficiente?<select value={day5Readiness.restSufficient} onChange={e => setDay5Readiness(v => ({...v,restSufficient:e.target.value as typeof v.restSufficient}))}><option value="yes">Sim</option><option value="partial">Parcialmente</option><option value="no">Não</option></select></label>
-              <label>Recuperação muscular<select value={day5Readiness.muscleRecovery} onChange={e => setDay5Readiness(v => ({...v,muscleRecovery:e.target.value as typeof v.muscleRecovery}))}><option value="recovered">Recuperado</option><option value="some_fatigue">Algum cansaço</option><option value="tired">Bastante cansado</option><option value="very_fatigued">Muito fatigado</option></select></label>
-              <label>Disposição para treinar: {day5Readiness.readiness}/5<input type="range" min="1" max="5" value={day5Readiness.readiness} onChange={e => setDay5Readiness(v => ({...v,readiness:Number(e.target.value)}))}/></label>
-            </div>
-            <label>Há alguma região que acha que precisa de prioridade? <small>(opcional — isto é uma percepção, não uma ordem para a IA)</small><textarea maxLength={300} placeholder="Ex.: Acho que preciso dar mais atenção ao bíceps." value={day5Readiness.perceivedPriority} onChange={e => setDay5Readiness(v => ({...v,perceivedPriority:e.target.value}))}/></label>
-            <div className="assessment-actions"><button className="dark-btn" onClick={submitDay5Analysis}>Analisar se devo fazer o 5.º dia</button></div>
-          </div>
-        </div>
+        <div className="modal-backdrop" onClick={() => setDay5CheckOpen(false)}><div className="modal-card day5-simple-checkin" onClick={e => e.stopPropagation()}>
+          <button className="modal-close" onClick={() => setDay5CheckOpen(false)}>x</button><p className="eyebrow green-text">MONTAR TREINO COM IA</p><h2>Conte como foi sua semana</h2><p>O RITMO cruza suas respostas com treinos, recuperacao, medidas, evolucao e analise corporal. A IA tambem pode concluir que o melhor e recuperar.</p>
+          <div className="day5-simple-grid">
+            <section className="day5-question"><strong>1. Como voce se sentiu fazendo os treinos desta semana?</strong><textarea maxLength={500} placeholder="Ex.: Treinei bem, tive energia, mas o ultimo treino foi mais pesado." value={day5Readiness.weeklyFeeling} onChange={e=>setDay5Readiness(v=>({...v,weeklyFeeling:e.target.value}))}/></section>
+            <section className="day5-question"><strong>2. Quais treinos voce realmente fez esta semana?</strong><p className="confidence-note">Marque os treinos executados. O RITMO tambem confere os registros reais da semana.</p><div className="day5-workout-checks">{day5WorkoutPlans.data?.map(plan=><label key={plan.id} className="day5-check-card"><input type="checkbox" checked={day5Readiness.selectedWorkoutIds.includes(plan.id)} onChange={e=>setDay5Readiness(v=>({...v,selectedWorkoutIds:e.target.checked?[...v.selectedWorkoutIds,plan.id]:v.selectedWorkoutIds.filter(id=>id!==plan.id)}))}/><span><b>{plan.name}</b><small>{plan.focusGroup}</small></span></label>)}{day5WorkoutPlans.data?.length===0&&<p>Voce ainda nao tem treinos salvos em Meus Treinos.</p>}</div></section>
+            <section className="day5-question"><strong>3. Voce sente que consegue fazer um 5. treino?</strong><div className="day5-choice-row">{[["yes","Sim - estou bem"],["maybe","Talvez - ainda estou cansado"],["no","Nao - preciso recuperar"]].map(([value,label])=><label key={value}><input type="radio" name="day5-capacity" checked={day5Readiness.perceivedCapacity===value} onChange={()=>setDay5Readiness(v=>({...v,perceivedCapacity:value as typeof v.perceivedCapacity}))}/>{label}</label>)}</div></section>
+            <section className="day5-question"><strong>4. Sente dor muscular ou alguma regiao ainda muito cansada?</strong><div className="day5-choice-row"><label><input type="radio" name="day5-soreness" checked={!day5Readiness.soreness} onChange={()=>setDay5Readiness(v=>({...v,soreness:false,sorenessRegions:[]}))}/>Nao</label><label><input type="radio" name="day5-soreness" checked={day5Readiness.soreness} onChange={()=>setDay5Readiness(v=>({...v,soreness:true}))}/>Sim</label></div>{day5Readiness.soreness&&<><div className="day5-muscle-grid">{["Peito","Costas","Ombros","Biceps","Triceps","Core","Gluteos","Quadriceps","Posteriores","Panturrilhas"].map(region=><label key={region}><input type="checkbox" checked={day5Readiness.sorenessRegions.includes(region)} onChange={e=>setDay5Readiness(v=>({...v,sorenessRegions:e.target.checked?[...v.sorenessRegions,region]:v.sorenessRegions.filter(x=>x!==region)}))}/>{region}</label>)}</div><select value={day5Readiness.sorenessIntensity} onChange={e=>setDay5Readiness(v=>({...v,sorenessIntensity:e.target.value as typeof v.sorenessIntensity}))}><option value="light">Leve</option><option value="moderate">Moderada</option><option value="strong">Forte</option></select></>}</section>
+            <section className="day5-question"><strong>5. Tem alguma regiao que voce acha que precisa melhorar?</strong><textarea maxLength={300} placeholder="Opcional. Ex.: Acho que preciso desenvolver mais o biceps." value={day5Readiness.perceivedPriority} onChange={e=>setDay5Readiness(v=>({...v,perceivedPriority:e.target.value}))}/><small>Sua percepcao e analisada junto com seus dados; nao e uma ordem para a IA.</small></section>
+          </div><div className="assessment-actions"><button className="dark-btn" disabled={!day5Readiness.weeklyFeeling.trim()||analyzeDay5Mutation.isPending} onClick={submitDay5Analysis}>{analyzeDay5Mutation.isPending?"Analisando...":"Criar treino com IA"}</button></div>
+        </div></div>
       )}
       {day5Open && (
         <div className="modal-backdrop" onClick={() => setDay5Open(false)}>

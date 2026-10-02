@@ -642,7 +642,7 @@ export const appRouter = router({
     }),
     analyzeDay5: protectedProcedure.input(z.object({
       from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), language: z.enum(["pt", "en", "es"]),
-      readiness: z.object({ sleepQuality: z.enum(["very_good","good","fair","poor"]), restSufficient: z.enum(["yes","partial","no"]), muscleRecovery: z.enum(["recovered","some_fatigue","tired","very_fatigued"]), readiness: z.number().int().min(1).max(5), perceivedPriority: z.string().trim().max(300).optional().default("") })
+      readiness: z.object({ weeklyFeeling: z.string().trim().min(2).max(500), perceivedCapacity: z.enum(["yes","maybe","no"]), soreness: z.boolean(), sorenessRegions: z.array(z.string().trim().min(2).max(40)).max(10), sorenessIntensity: z.enum(["light","moderate","strong"]), selectedWorkoutIds: z.array(z.number().int().positive()).max(20), perceivedPriority: z.string().trim().max(300).optional().default("") })
     })).mutation(async ({ ctx, input }) => {
       if (fifthDayPaused()) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "O quinto dia permanece pausado." });
       await requirePremium(ctx.user.id);
@@ -655,7 +655,7 @@ export const appRouter = router({
       const completedSessions = sessions.filter(s => s.status === "completed");
       const muscleVolume: Record<string, number> = {};
       for (const session of completedSessions) for (const set of session.sets) { const ex = exerciseIds.includes(set.exerciseId as any) ? exerciseById[set.exerciseId as keyof typeof exerciseById] : null; if (ex) muscleVolume[ex.group] = (muscleVolume[ex.group] ?? 0) + 1; }
-      const hardStop = input.readiness.sleepQuality === "poor" || input.readiness.restSufficient === "no" || input.readiness.muscleRecovery === "very_fatigued" || input.readiness.readiness <= 2 || assessment?.recovery === "very_low" || assessment?.fatigue === "very_high";
+      const hardStop = input.readiness.perceivedCapacity === "no" || (input.readiness.soreness && input.readiness.sorenessIntensity === "strong") || assessment?.recovery === "very_low" || assessment?.fatigue === "very_high";
       const body = bodyHistory[0] ? JSON.parse(bodyHistory[0].analysisJson) as unknown : null;
       const base = { userReadiness: input.readiness, week: analysis, completedTraining: completedSessions, muscleVolumeConfirmedSets: muscleVolume, weeklyAssessment: assessment, latestBodyAnalysis: body, previousBodyAnalysis: bodyHistory[1] ? JSON.parse(bodyHistory[1].analysisJson) : null, previousAssessments: history.filter(r => r.weekStart !== input.weekStart).slice(0,6), dailyLogs: daily.map(l => ({date:l.activityDate,recovery:l.recovery,workoutId:l.workoutId,completedCount:l.completedCount})), exerciseCatalog: catalogFor(experience), experience };
       if (hardStop) return { decision: "REST" as const, recommendation: "rest" as const, rationale: "Os dados de recuperação informados não justificam acrescentar outro treino de musculação hoje. O descanso tem melhor relação benefício/recuperação.", confidence: "high" as const, source: "rules" as const, userPerceptionAssessment: { supported: false, reason: "A preferência muscular não supera sinais de recuperação insuficiente." }, dataUsed: { completedWorkouts: completedSessions.length, bodyAnalysis: Boolean(body), weeklyAssessment: Boolean(assessment), wearable: analysis.wearableDataAvailable }, historyWeeksConsidered: history.length, exercises: [] };
