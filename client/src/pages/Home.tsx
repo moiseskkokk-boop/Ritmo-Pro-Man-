@@ -1548,11 +1548,14 @@ const day5Labels = {
   },
 } as const;
 type Day5Recommendation = {
+  decision?: "TRAIN" | "LIGHT_SESSION" | "ACTIVE_RECOVERY" | "REST" | "INSUFFICIENT_DATA";
   recommendation: keyof (typeof day5Labels)["pt"];
   rationale: string;
   confidence: "low" | "medium" | "high";
   source: "ai" | "rules";
   historyWeeksConsidered: number;
+  userPerceptionAssessment?: { supported: boolean; reason: string };
+  dataUsed?: { completedWorkouts: number; bodyAnalysis: boolean; weeklyAssessment: boolean; wearable: boolean };
   exercises?: { exerciseId: ExerciseId; sets: number; reps: string; loadKg: number | null; restSeconds: number; note?: string | null; name: string; prescription: string }[];
 };
 type BodyPhotoSlot = "front" | "left" | "back" | "right";
@@ -1577,6 +1580,8 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
   );
   const [consentChecked, setConsentChecked] = useState(false);
   const [day5Open, setDay5Open] = useState(false);
+  const [day5CheckOpen, setDay5CheckOpen] = useState(false);
+  const [day5Readiness, setDay5Readiness] = useState({ sleepQuality: "good" as "very_good"|"good"|"fair"|"poor", restSufficient: "yes" as "yes"|"partial"|"no", muscleRecovery: "recovered" as "recovered"|"some_fatigue"|"tired"|"very_fatigued", readiness: 4, perceivedPriority: "" });
   const [day5Saved, setDay5Saved] = useState(false);
   const [language, setLanguage] = useState<Language>(
     () => (localStorage.getItem("ritmo-mf-language") as Language) || "pt"
@@ -1851,7 +1856,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
       : null,
     weeklyActivityAnalysis.data
   );
-  const day5Eligible = false; // Fifth day remains paused.
+  const day5Eligible = Boolean(weeklyActivityAnalysis.data?.dataAvailable && (weeklyActivityAnalysis.data?.workoutsCompleted ?? 0) >= 4);
   const effectiveRecommendation =
     aiDay5?.recommendation ?? (day5Eligible ? currentRecommendation : "waiting");
   const recommendationLabel =
@@ -2046,7 +2051,12 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
   };
   const openDay5Analysis = () => {
     if (!user || !day5Eligible) return;
-    analyzeDay5Mutation.mutate({ ...weeklyAnalysisInput, weekStart, language });
+    setDay5CheckOpen(true);
+  };
+  const submitDay5Analysis = () => {
+    if (!user || !day5Eligible) return;
+    setDay5CheckOpen(false);
+    analyzeDay5Mutation.mutate({ ...weeklyAnalysisInput, weekStart, language, readiness: day5Readiness });
   };
   const analyzeBody = () => {
     const selected = photoFiles;
@@ -2656,8 +2666,8 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
                   </div>
                 </div>
                 <div className="day5-side">
-                  <span className="status-chip">
-                    {language === "en" ? "PAUSED" : language === "es" ? "PAUSADO" : "PAUSADO"}
+                  <span className={`status-chip ${day5Eligible ? "ready" : ""}`}>
+                    {day5Eligible ? (language === "en" ? "READY TO ASSESS" : language === "es" ? "LISTO PARA EVALUAR" : "PRONTO PARA AVALIAR") : (language === "en" ? "COMPLETE 4 WORKOUTS" : language === "es" ? "COMPLETA 4 ENTRENAMIENTOS" : "COMPLETE 4 TREINOS")}
                   </span>
                   <button
                     className="outline-btn"
@@ -2823,6 +2833,24 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
           </div>
         </div>
       )}
+      {day5CheckOpen && (
+        <div className="modal-backdrop" onClick={() => setDay5CheckOpen(false)}>
+          <div className="modal-card" onClick={event => event.stopPropagation()}>
+            <button className="modal-close" onClick={() => setDay5CheckOpen(false)}>×</button>
+            <p className="eyebrow green-text">DIA 5 · CHECK-IN DE RECUPERAÇÃO</p>
+            <h2>Antes de decidir se deve treinar</h2>
+            <p>O RITMO vai cruzar estas respostas com os treinos concluídos, volume, análise corporal, evolução e dados disponíveis.</p>
+            <div className="assessment-grid">
+              <label>Como dormiu?<select value={day5Readiness.sleepQuality} onChange={e => setDay5Readiness(v => ({...v,sleepQuality:e.target.value as typeof v.sleepQuality}))}><option value="very_good">Muito bem</option><option value="good">Bem</option><option value="fair">Razoável</option><option value="poor">Mal</option></select></label>
+              <label>Teve descanso suficiente?<select value={day5Readiness.restSufficient} onChange={e => setDay5Readiness(v => ({...v,restSufficient:e.target.value as typeof v.restSufficient}))}><option value="yes">Sim</option><option value="partial">Parcialmente</option><option value="no">Não</option></select></label>
+              <label>Recuperação muscular<select value={day5Readiness.muscleRecovery} onChange={e => setDay5Readiness(v => ({...v,muscleRecovery:e.target.value as typeof v.muscleRecovery}))}><option value="recovered">Recuperado</option><option value="some_fatigue">Algum cansaço</option><option value="tired">Bastante cansado</option><option value="very_fatigued">Muito fatigado</option></select></label>
+              <label>Disposição para treinar: {day5Readiness.readiness}/5<input type="range" min="1" max="5" value={day5Readiness.readiness} onChange={e => setDay5Readiness(v => ({...v,readiness:Number(e.target.value)}))}/></label>
+            </div>
+            <label>Há alguma região que acha que precisa de prioridade? <small>(opcional — isto é uma percepção, não uma ordem para a IA)</small><textarea maxLength={300} placeholder="Ex.: Acho que preciso dar mais atenção ao bíceps." value={day5Readiness.perceivedPriority} onChange={e => setDay5Readiness(v => ({...v,perceivedPriority:e.target.value}))}/></label>
+            <div className="assessment-actions"><button className="dark-btn" onClick={submitDay5Analysis}>Analisar se devo fazer o 5.º dia</button></div>
+          </div>
+        </div>
+      )}
       {day5Open && (
         <div className="modal-backdrop" onClick={() => setDay5Open(false)}>
           <div
@@ -2834,7 +2862,10 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
             </button>
             <p className="eyebrow green-text">{t.day5Decision}</p>
             <h2>{recommendationLabel}</h2>
+            {aiDay5?.decision && <div className="day5-recommendation"><strong>Decisão do RITMO</strong><span>{aiDay5.decision === "TRAIN" ? "Treino recomendado" : aiDay5.decision === "LIGHT_SESSION" ? "Sessão leve recomendada" : aiDay5.decision === "ACTIVE_RECOVERY" ? "Recuperação ativa" : aiDay5.decision === "REST" ? "Hoje, descanso" : "Dados insuficientes"}</span></div>}
             <p>{aiDay5?.rationale || c.day5Lead}</p>
+            {aiDay5?.userPerceptionAssessment && <p className="confidence-note"><strong>Sua percepção:</strong> {aiDay5.userPerceptionAssessment.supported ? "compatível com os dados. " : "não confirmada pelos dados atuais. "}{aiDay5.userPerceptionAssessment.reason}</p>}
+            {aiDay5?.dataUsed && <p className="confidence-note">Dados usados: {aiDay5.dataUsed.completedWorkouts} treino(s) concluído(s) · análise corporal {aiDay5.dataUsed.bodyAnalysis ? "✓" : "—"} · avaliação semanal {aiDay5.dataUsed.weeklyAssessment ? "✓" : "—"} · wearable {aiDay5.dataUsed.wearable ? "✓" : "—"}</p>}
             {aiDay5?.exercises?.length ? (
               <div className="day5-workout">
                 <p><strong>{language === "pt" ? "Treino opcional gerado para esta semana" : language === "es" ? "Entrenamiento opcional generado para esta semana" : "Optional workout generated for this week"}</strong></p>

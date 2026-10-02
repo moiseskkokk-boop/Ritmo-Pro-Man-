@@ -242,7 +242,7 @@ function publicWorkoutPlan(plan: Awaited<ReturnType<typeof getWorkoutPlans>>[num
   return { id: plan.id, source: plan.source, baseWorkoutId: plan.baseWorkoutId, name: plan.name, objective: plan.objective, focusGroup: plan.focusGroup, durationMinutes: plan.durationMinutes, notes: plan.notes, exercises: z.array(workoutExerciseSchema).parse(exercises), createdAt: plan.createdAt, updatedAt: plan.updatedAt };
 }
 
-function fifthDayPaused(): boolean { return true; }
+function fifthDayPaused(): boolean { return false; }
 
 export const appRouter = router({
   fitness: fitnessRouter,
@@ -396,7 +396,6 @@ export const appRouter = router({
     catalog: protectedProcedure.query(({ ctx }) => catalogFor(ctx.user.experience ?? "man")),
     list: protectedProcedure.query(async ({ ctx }) => (await getWorkoutPlans(ctx.user.id, ctx.user.experience ?? "man")).map(publicWorkoutPlan)),
     create: protectedProcedure.input(workoutPlanInputSchema.extend({ baseWorkoutId: z.enum(["A", "B", "C", "D"]).nullable().optional(), source: z.enum(["manual", "ai", "customized", "day5"]).default("manual") })).mutation(async ({ ctx, input }) => {
-      if (input.source === "day5") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "O quinto dia permanece pausado." });
       const { exercises, ...details } = input;
       try { assertExperienceExercises(exercises, ctx.user.experience ?? "man"); }
       catch { throw new TRPCError({ code: "BAD_REQUEST", message: "Exercício não pertence a esta experiência." }); }
@@ -641,46 +640,31 @@ export const appRouter = router({
         return { sufficient: true, source: "rules" as const, summary: "A análise por IA está temporariamente indisponível. As métricas sincronizadas continuam disponíveis acima.", recommendations: [] as string[] };
       }
     }),
-    analyzeDay5: protectedProcedure.input(z.object({ from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), language: z.enum(["pt", "en", "es"]) })).mutation(async ({ ctx, input }) => {
+    analyzeDay5: protectedProcedure.input(z.object({
+      from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), language: z.enum(["pt", "en", "es"]),
+      readiness: z.object({ sleepQuality: z.enum(["very_good","good","fair","poor"]), restSufficient: z.enum(["yes","partial","no"]), muscleRecovery: z.enum(["recovered","some_fatigue","tired","very_fatigued"]), readiness: z.number().int().min(1).max(5), perceivedPriority: z.string().trim().max(300).optional().default("") })
+    })).mutation(async ({ ctx, input }) => {
       if (fifthDayPaused()) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "O quinto dia permanece pausado." });
       await requirePremium(ctx.user.id);
       const today = lisbonDate();
-      const weekday = new Date(`${today}T12:00:00Z`).getUTCDay() || 7;
-      if (input.weekStart !== currentWeekStart() || input.from !== input.weekStart || input.to !== currentWeekEnd() || weekday < 5) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "The optional fifth-day plan is available from Friday for the current training week only." });
-      }
-      const [analysis, assessment, history, daily, bodyHistory] = await Promise.all([
-        getWeeklyActivityAnalysis(ctx.user.id, input.from, input.to, input.weekStart, ctx.user.experience ?? "man"),
-        getCurrentAssessment(ctx.user.id, input.weekStart),
-        getAssessmentHistory(ctx.user.id, 12),
-        getDailyHistory(ctx.user.id, input.from, input.to),
-        getBodyAnalysisHistory(ctx.user.id, 2),
+      if (input.weekStart !== currentWeekStart() || input.from !== input.weekStart || input.to !== currentWeekEnd()) throw new TRPCError({ code: "BAD_REQUEST", message: "O quinto dia usa apenas a semana de treino atual." });
+      const experience = ctx.user.experience ?? "man";
+      const [analysis, assessment, history, daily, bodyHistory, sessions] = await Promise.all([
+        getWeeklyActivityAnalysis(ctx.user.id, input.from, input.to, input.weekStart, experience), getCurrentAssessment(ctx.user.id, input.weekStart), getAssessmentHistory(ctx.user.id, 12), getDailyHistory(ctx.user.id, input.from, input.to), getBodyAnalysisHistory(ctx.user.id, 2), getRecentTrainingContext(ctx.user.id, input.from, today, experience)
       ]);
-      const fallback = () => {
-        const lowRecovery = assessment?.recovery === "very_low" || assessment?.recovery === "low" || assessment?.fatigue === "very_high";
-        const highCardio = (analysis.cardioMinutes != null && analysis.cardioMinutes >= 150) || assessment?.cardio === "45_60" || assessment?.cardio === "over60";
-        const recommendation = lowRecovery ? "recovery" : highCardio && assessment?.recovery !== "very_good" ? "mobility" : assessment?.objective === "strength" && ["b1", "b2", "b3"].includes(assessment?.benchPressLevel ?? "") ? "technical" : assessment?.objective === "fatloss" && ["none", "u20"].includes(assessment?.cardio ?? "") ? "conditioning" : Number(assessment?.heightCm) >= 190 ? "core" : "complementary";
-        const rationale = {
-          pt: lowRecovery ? "A recuperação ou a fadiga registada indicam que uma sessão leve é mais adequada agora." : "A recomendação considera os registos dos quatro treinos e a avaliação semanal disponível.",
-          en: lowRecovery ? "The recorded recovery or fatigue suggests a light session is more appropriate now." : "The recommendation uses the four workout records and available weekly assessment.",
-          es: lowRecovery ? "La recuperación o fatiga registrada indican que una sesión ligera es más adecuada ahora." : "La recomendación utiliza los registros de los cuatro entrenamientos y la evaluación semanal disponible.",
-        }[input.language];
-        return { recommendation, rationale, confidence: "medium" as const, source: "rules" as const, historyWeeksConsidered: history.length, exercises: [] as { name: string; prescription: string }[] };
-      };
-      if (!assessment || !analysis.dataAvailable || analysis.workoutsCompleted < 4) return fallback();
+      const completedSessions = sessions.filter(s => s.status === "completed");
+      const muscleVolume: Record<string, number> = {};
+      for (const session of completedSessions) for (const set of session.sets) { const ex = exerciseIds.includes(set.exerciseId as any) ? exerciseById[set.exerciseId as keyof typeof exerciseById] : null; if (ex) muscleVolume[ex.group] = (muscleVolume[ex.group] ?? 0) + 1; }
+      const hardStop = input.readiness.sleepQuality === "poor" || input.readiness.restSufficient === "no" || input.readiness.muscleRecovery === "very_fatigued" || input.readiness.readiness <= 2 || assessment?.recovery === "very_low" || assessment?.fatigue === "very_high";
+      const body = bodyHistory[0] ? JSON.parse(bodyHistory[0].analysisJson) as unknown : null;
+      const base = { userReadiness: input.readiness, week: analysis, completedTraining: completedSessions, muscleVolumeConfirmedSets: muscleVolume, weeklyAssessment: assessment, latestBodyAnalysis: body, previousBodyAnalysis: bodyHistory[1] ? JSON.parse(bodyHistory[1].analysisJson) : null, previousAssessments: history.filter(r => r.weekStart !== input.weekStart).slice(0,6), dailyLogs: daily.map(l => ({date:l.activityDate,recovery:l.recovery,workoutId:l.workoutId,completedCount:l.completedCount})), exerciseCatalog: catalogFor(experience), experience };
+      if (hardStop) return { decision: "REST" as const, recommendation: "rest" as const, rationale: "Os dados de recuperação informados não justificam acrescentar outro treino de musculação hoje. O descanso tem melhor relação benefício/recuperação.", confidence: "high" as const, source: "rules" as const, userPerceptionAssessment: { supported: false, reason: "A preferência muscular não supera sinais de recuperação insuficiente." }, dataUsed: { completedWorkouts: completedSessions.length, bodyAnalysis: Boolean(body), weeklyAssessment: Boolean(assessment), wearable: analysis.wearableDataAvailable }, historyWeeksConsidered: history.length, exercises: [] };
       try {
-        const llmResponse = await runDay5({ language: input.language, week: analysis, assessment, dailyLogs: daily.map(log => ({ date: log.activityDate, meals: log.mealsNote, waterLiters: log.waterLiters, cardioMinutes: log.cardioMinutes, recovery: log.recovery, workoutId: log.workoutId, completedCount: log.completedCount })), latestBodyAnalysis: bodyHistory[0] ? JSON.parse(bodyHistory[0].analysisJson) as unknown : null, previousAssessments: history.filter(row => row.weekStart !== input.weekStart).slice(0, 6), exerciseCatalog: catalogFor(ctx.user.experience ?? "man"), experience: ctx.user.experience ?? "man" });
-        const content = llmResponse.text;
-        const parsed = z.object({
-          recommendation: z.enum(["recovery", "mobility", "core", "stability", "conditioning", "technical", "complementary", "rest"]),
-          rationale: z.string().min(20).max(500), confidence: z.enum(["low", "medium", "high"]),
-          exercises: z.array(workoutExerciseSchema).max(5),
-        }).parse(JSON.parse(content));
-        return { ...parsed, exercises: parsed.exercises.map(exercise => ({ ...exercise, name: exerciseById[exercise.exerciseId].name, prescription: String(exercise.sets) + " × " + exercise.reps })), source: "ai" as const, historyWeeksConsidered: history.length };
-      } catch (error) {
-        console.warn("[Day5] AI analysis unavailable, using data-only fallback");
-        return fallback();
-      }
+        const llmResponse = await runDay5(base); const parsed = z.object({ decision: z.enum(["TRAIN","LIGHT_SESSION","ACTIVE_RECOVERY","REST","INSUFFICIENT_DATA"]), recommendation: z.enum(["recovery","mobility","core","stability","conditioning","technical","complementary","rest"]), rationale: z.string().min(20).max(900), confidence: z.enum(["low","medium","high"]), userPerceptionAssessment: z.object({ supported: z.boolean(), reason: z.string().min(5).max(400) }), exercises: z.array(workoutExerciseSchema).max(5) }).parse(JSON.parse(llmResponse.text));
+        assertExperienceExercises(parsed.exercises, experience);
+        if (["REST","ACTIVE_RECOVERY","INSUFFICIENT_DATA"].includes(parsed.decision) && parsed.exercises.length) parsed.exercises = [];
+        return { ...parsed, exercises: parsed.exercises.map(ex => ({...ex,name:exerciseById[ex.exerciseId].name,prescription:String(ex.sets)+" × "+ex.reps})), source:"ai" as const, dataUsed:{completedWorkouts:completedSessions.length,bodyAnalysis:Boolean(body),weeklyAssessment:Boolean(assessment),wearable:analysis.wearableDataAvailable}, historyWeeksConsidered:history.length };
+      } catch (error) { console.warn("[Day5] AI decision unavailable", error instanceof Error ? error.message : "unknown"); return { decision:"INSUFFICIENT_DATA" as const,recommendation:"rest" as const,rationale:"Não foi possível validar dados suficientes para gerar um quinto treino com segurança agora.",confidence:"low" as const,source:"rules" as const,userPerceptionAssessment:{supported:false,reason:"A percepção foi registada, mas não pôde ser validada com segurança."},dataUsed:{completedWorkouts:completedSessions.length,bodyAnalysis:Boolean(body),weeklyAssessment:Boolean(assessment),wearable:analysis.wearableDataAvailable},historyWeeksConsidered:history.length,exercises:[] }; }
     }),
     requestWearableConnection: protectedProcedure.input(z.object({ provider: z.enum(["coros", "google_health", "garmin", "apple_health", "health_connect"]) })).mutation(async ({ ctx, input }) => {
       if (input.provider === "apple_health" || input.provider === "health_connect") {

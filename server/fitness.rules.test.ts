@@ -220,30 +220,9 @@ describe("fitness domain rules", () => {
       )
     ).toBe("connected");
   });
-  it("keeps the pre-existing optional fifth day paused even through direct API calls", async () => {
-    const caller = appRouter.createCaller({
-      user: { id: 42, role: "user" },
-      req: { headers: {} },
-      res: {},
-    } as TrpcContext);
-    await expect(
-      caller.progress.analyzeDay5({
-        from: "2026-09-28",
-        to: "2026-10-04",
-        weekStart: "2026-09-28",
-        language: "pt",
-      })
-    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
-    await expect(
-      caller.workouts.create({
-        name: "Optional",
-        objective: "Strength",
-        focusGroup: "Chest",
-        durationMinutes: 30,
-        source: "day5",
-        exercises: originalSnapshot("A").exercises,
-      })
-    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+  it("requires the Day 5 recovery check-in before analysis", async () => {
+    const caller = appRouter.createCaller({ user: { id: 42, role: "user" }, req: { headers: {} }, res: {} } as TrpcContext);
+    await expect(caller.progress.analyzeDay5({ from: "2026-09-28", to: "2026-10-04", weekStart: "2026-09-28", language: "pt" } as any)).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
   it("rejects unauthenticated access to all private fitness domains", async () => {
     const caller = appRouter.createCaller({
