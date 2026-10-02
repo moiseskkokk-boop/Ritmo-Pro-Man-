@@ -603,3 +603,23 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible { 
 
 /* Weekly assessment longitudinal history */
 .assessment-evolution{margin-top:16px;padding:14px;border:1px solid #26342d;border-radius:16px;background:#0d1210}.assessment-evolution h3{font-weight:800}.assessment-evolution p{margin-top:6px;font-size:13px}.assessment-history-card{overflow:hidden;border:1px solid #26342d;border-radius:16px;background:#0d1210}.assessment-history-head{display:flex;width:100%;align-items:center;justify-content:space-between;padding:14px;border:0;background:transparent;color:inherit;text-align:left}.assessment-history-head span{display:grid;gap:3px}.assessment-history-head small{opacity:.68}.assessment-history-detail{display:grid;gap:7px;padding:0 14px 14px;border-top:1px solid #26342d;padding-top:12px;font-size:13px}.assessment-history-analysis{margin-top:5px;padding:12px;border-radius:12px;background:#ffffff08}.assessment-history-analysis p{margin-top:5px;line-height:1.5}[data-experience="woman"] .assessment-evolution,[data-experience="woman"] .assessment-history-card{border-color:#573343;background:#140e11}[data-experience="woman"] .assessment-history-detail{border-color:#573343}
+
+/* Ritmo Woman visual system — scoped, Man remains untouched */
+[data-experience="woman"]{--woman-pink:#ff79b0;--woman-pink-strong:#d93f7f;--woman-blush:#fff0f6;--woman-wine:#6f2147;--woman-violet:#b58cff;--woman-panel:#181116;--woman-line:#543044}
+[data-experience="woman"] .theme-woman-dark .feature-card,[data-experience="woman"] .theme-woman-dark .analysis-card{border-color:var(--woman-line);box-shadow:0 14px 40px rgba(217,63,127,.08)}
+[data-experience="woman"] .theme-woman-dark .analysis-card,[data-experience="woman"] .theme-woman-dark .analysis-panel{background:linear-gradient(145deg,var(--woman-blush),#f7e8ff)!important;color:#26131d!important;border-color:#efb6d1!important}
+[data-experience="woman"] .theme-woman-dark .analysis-card h2,[data-experience="woman"] .theme-woman-dark .analysis-panel h2{color:var(--woman-wine)!important}
+[data-experience="woman"] .theme-woman-dark .analysis-card p,[data-experience="woman"] .theme-woman-dark .analysis-panel p{color:#69545e!important}
+[data-experience="woman"] .theme-woman-dark .primary-btn,[data-experience="woman"] .theme-woman-dark button.primary,[data-experience="woman"] .theme-woman-dark .dark-btn{background:linear-gradient(135deg,var(--woman-pink-strong),var(--woman-pink))!important;color:#fff!important;border-color:#ff9fc5!important;box-shadow:0 8px 24px rgba(217,63,127,.22)}
+[data-experience="woman"] .theme-woman-dark .primary-btn:hover,[data-experience="woman"] .theme-woman-dark .dark-btn:hover{transform:translateY(-1px);box-shadow:0 12px 30px rgba(217,63,127,.32)}
+[data-experience="woman"] .theme-woman-dark .section-kicker.green,[data-experience="woman"] .theme-woman-dark .green-text,[data-experience="woman"] .theme-woman-dark .fitness-kicker{color:var(--woman-pink)!important}
+[data-experience="woman"] .theme-woman-dark .privacy-note,[data-experience="woman"] .theme-woman-dark [class*="privacy"]{border-color:#ef9fc3!important;background:rgba(255,121,176,.08)!important}
+[data-experience="woman"] .ai-confirm-card{background:linear-gradient(145deg,#171016,#1a1222);border-color:#67425d;box-shadow:0 14px 36px rgba(181,140,255,.07)}
+[data-experience="woman"] .ai-confirm-actions button.confirmed{border-color:var(--woman-violet);color:#d9c4ff;box-shadow:0 0 18px rgba(181,140,255,.12)}
+[data-experience="woman"] .assessment-evolution,[data-experience="woman"] .assessment-history-card{background:linear-gradient(145deg,#171015,#1b1219);border-color:#63384d}
+[data-experience="woman"] .assessment-history-head:active,[data-experience="woman"] .fitness-card button:active,[data-experience="woman"] .profile-card button:active{transform:scale(.985)}
+[data-experience="woman"] .assessment-history-head,[data-experience="woman"] .fitness-card button,[data-experience="woman"] .profile-card button{transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease,background .18s ease}
+[data-experience="woman"] .ritmo-loader{background:radial-gradient(circle at 50% 42%,rgba(181,140,255,.12),transparent 30%),#0d090c}
+[data-experience="woman"] .ritmo-loader-line i{background:linear-gradient(90deg,var(--woman-pink),var(--woman-violet))}
+[data-experience="woman"] :focus-visible{outline:2px solid var(--woman-pink)!important;outline-offset:2px}
+@media(max-width:580px){[data-experience="woman"] .theme-woman-dark .analysis-card,[data-experience="woman"] .theme-woman-dark .analysis-panel{border-radius:24px}}

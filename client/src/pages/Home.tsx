@@ -2635,7 +2635,7 @@ export default function Home({ view = "training" }: { view?: HomeView }) {
                   ? "Your assessment, weekly photos and optional fifth-day recommendation in one focused space."
                   : language === "es"
                     ? "Tu evaluación, fotos semanales y recomendación opcional del quinto día en un solo espacio."
-                    : "Sua avaliação, fotos semanais e recomendação opcional do quinto dia em um só espaço."}
+                    : "Sua avaliação semanal, evolução corporal e criação de treino com IA em um só espaço."}
               </p>
             </section>
             <section className="assessment-section section-shell">
