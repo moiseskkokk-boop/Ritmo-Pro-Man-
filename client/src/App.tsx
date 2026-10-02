@@ -4,7 +4,8 @@ const Fitness = lazy(() => import("./pages/Fitness"));
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
+import { Route, Switch, useLocation } from "wouter";
+import RitmoAppHeader from "./components/ritmo/RitmoAppHeader";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 const Home = lazy(() => import("./pages/Home"));
@@ -28,6 +29,8 @@ const AnalysisPage = () => <Home view="analysis" />;
 
 function Router() {
   const { user } = useAuth();
+  const [location] = useLocation();
+  const publicRoute = ["/", "/login", "/escolher-versao", "/termos", "/privacidade"].includes(location);
   // make sure to consider if you need authentication for certain routes
   return (
     <Suspense
@@ -37,7 +40,7 @@ function Router() {
         </main>
       }
     >
-      <div data-experience={user?.experience ?? "general"}><Switch>
+      <div data-experience={user?.experience ?? "general"} className={`ritmo-app-shell ${user?.experience === "woman" ? "ritmo-woman" : "ritmo-man"}`}>{user && !publicRoute && <RitmoAppHeader />}<Switch>
         <Route path={"/"} component={Experience} />
         <Route path={"/treino"} component={TrainingPage} />
         <Route path={"/analise"} component={AnalysisPage} />
