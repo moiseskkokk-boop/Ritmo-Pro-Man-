@@ -14,6 +14,7 @@ import type { TrpcContext } from "./_core/context";
 import { ENV, getJwtSecret } from "./_core/env";
 import { attachMercadoPagoCheckout, createPendingSubscription, createLocalUser, createOAuthUser, createWorkoutPlan, deleteWorkoutPlan, getLatestUserSubscription, getUserByEmail, getUserById, getWorkoutPlans, invalidateUserSessions, saveBodyAnalysis, setUserLastSignedIn, updateSubscriptionByProviderId, updateUserName, updateUserExperience, updateUserPassword, updateWorkoutPlan, consumeAuthEmailToken, consumeAuthRateLimit, issueAuthEmailToken, markEmailVerified, setPendingUserEmail, updateUserEmail } from "./db";
 import { runWorkoutGeneration } from "./ai/features/workout-generation";
+import { runWorkoutProgram } from "./ai/features/workout-program";
 import { runSmartwatchPhoto, runWeeklyWearable } from "./ai/features/smartwatch";
 import { runDay5 } from "./ai/features/day5";
 import { runBodyAnalysis } from "./ai/features/body-analysis";
@@ -403,6 +404,9 @@ export const appRouter = router({
       if (!saved) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível salvar o treino." });
       return publicWorkoutPlan(saved);
     }),
+    saveAIProgram: protectedProcedure.input(z.object({plans:z.array(workoutPlanInputSchema).min(1).max(7)})).mutation(async({ctx,input})=>{
+      const result=[]; for(const plan of input.plans){ assertExperienceExercises(plan.exercises,ctx.user.experience??"man"); const saved=await createWorkoutPlan({...plan,userId:ctx.user.id,experience:ctx.user.experience??"man",exercisesJson:JSON.stringify(plan.exercises.map(ex=>({...ex,loadKg:null}))),notes:plan.notes??null,baseWorkoutId:null,source:"ai"}); if(!saved) throw new TRPCError({code:"INTERNAL_SERVER_ERROR",message:"Não foi possível salvar o programa."}); result.push(publicWorkoutPlan(saved)); } return result;
+    }),
     update: protectedProcedure.input(workoutPlanInputSchema.extend({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
       const { id, exercises, ...details } = input;
       try { assertExperienceExercises(exercises, ctx.user.experience ?? "man"); }
@@ -414,6 +418,24 @@ export const appRouter = router({
     remove: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
       if (!await deleteWorkoutPlan(ctx.user.id, input.id, ctx.user.experience ?? "man")) throw new TRPCError({ code: "NOT_FOUND", message: "Treino não encontrado." });
       return { success: true as const };
+    }),
+    aiContext: protectedProcedure.query(async ({ ctx }) => {
+      const today = lisbonDate(); const weekStart = currentWeekStart();
+      const [assessment, bodyHistory, savedPlans] = await Promise.all([getCurrentAssessment(ctx.user.id, weekStart), getBodyAnalysisHistory(ctx.user.id, 2), getWorkoutPlans(ctx.user.id, ctx.user.experience ?? "man")]);
+      const latestBody = bodyHistory[0] ?? null;
+      let photoCount = 0; if (latestBody) { try { photoCount = Object.keys(JSON.parse(latestBody.photoKeys)).length; } catch {} }
+      return { profile: true, assessment: Boolean(assessment), bodyAnalysis: Boolean(latestBody), photos: photoCount, analysisMonth: latestBody?.analysisMonth ?? null, objective: latestBody?.objective ?? assessment?.objective ?? null, savedPlans: savedPlans.length };
+    }),
+    generateProgramWithAI: protectedProcedure.input(z.object({ trainingCount:z.number().int().min(1).max(7), userMessage:z.string().trim().min(1).max(1200), language:z.enum(["pt","en","es"]), previousPlans:z.array(workoutPlanInputSchema).max(7).default([]) })).mutation(async ({ctx,input})=>{
+      await requirePremium(ctx.user.id); if(!ENV.geminiApiKey) throw new TRPCError({code:"PRECONDITION_FAILED",message:"O serviço de IA não está configurado."});
+      const release = input.previousPlans.length ? null : await reserveWorkoutWeek(ctx.user.id);
+      try { const today=lisbonDate(), weekStart=currentWeekStart(); const fromDate=new Date(`${today}T12:00:00Z`); fromDate.setUTCDate(fromDate.getUTCDate()-29); const from=fromDate.toISOString().slice(0,10);
+        const [assessment,week,daily,history,bodyHistory,savedPlans,sessionTraining]=await Promise.all([getCurrentAssessment(ctx.user.id,weekStart),getWeeklyActivityAnalysis(ctx.user.id,weekStart,today,weekStart,ctx.user.experience??"man"),getDailyHistory(ctx.user.id,from,today),getAssessmentHistory(ctx.user.id,6),getBodyAnalysisHistory(ctx.user.id,2),getWorkoutPlans(ctx.user.id,ctx.user.experience??"man"),getRecentTrainingContext(ctx.user.id,from,today,ctx.user.experience??"man")]);
+        const body=bodyHistory[0]?JSON.parse(bodyHistory[0].analysisJson):null; const data={currentAssessment:assessment??null,latestBodyAnalysis:body,weeklyTrainingAndWearableData:week,recentTrainingSessions:sessionTraining,recentDailyLogs:daily,previousWeeklyAssessments:history,priorCustomizations:savedPlans.slice(0,8).map(p=>({name:p.name,focusGroup:p.focusGroup,source:p.source,exercises:JSON.parse(p.exercisesJson)}))};
+        const response=await runWorkoutProgram({language:input.language,experience:ctx.user.experience??"man",trainingCount:input.trainingCount,userMessage:input.userMessage,previousPlans:input.previousPlans,data,exerciseCatalog:catalogFor(ctx.user.experience??"man")});
+        const parsed=z.object({reply:z.string().min(1).max(2400),plans:z.array(workoutPlanInputSchema).min(input.trainingCount).max(input.trainingCount)}).parse(JSON.parse(response.text));
+        const plans=parsed.plans.map(plan=>({...plan,exercises:plan.exercises.map(ex=>({...ex,loadKg:null}))})); plans.forEach(plan=>assertExperienceExercises(plan.exercises,ctx.user.experience??"man")); return {...parsed,plans};
+      } catch(error){ if(release) await release(); if(error instanceof TRPCError) throw error; throw new TRPCError({code:"BAD_GATEWAY",message:"A IA não conseguiu montar um programa válido agora. Tente novamente."}); }
     }),
     generateWithAI: protectedProcedure.input(z.object({ objective: z.string().trim().min(2).max(80), focusGroup: z.string().trim().min(2).max(80), durationMinutes: z.number().int().min(10).max(180), availabilityDays: z.number().int().min(1).max(7), language: z.enum(["pt", "en", "es"]) })).mutation(async ({ ctx, input }) => {
       await requirePremium(ctx.user.id);
