@@ -26,6 +26,7 @@ export default function RitmoAppHeader() {
   if (!user) return null;
   const woman = user.experience === "woman";
   const name = user.name?.trim() || user.email?.split("@")[0] || "Cliente";
+  const isAdmin = user.role === "admin" || user.email?.trim().toLowerCase() === "moiseskkokk@gmail.com";
   return <header className="ritmo-global-header">
     <Link href="/dashboard" className="ritmo-global-brand" onClick={()=>setOpen(false)}>
       <img src={woman ? "/brand/ritmo-pro-woman.png" : "/brand/ritmo-pro-man.png"} alt=""/>
@@ -34,6 +35,7 @@ export default function RitmoAppHeader() {
     <button className="ritmo-menu-button" aria-label="Menu" aria-expanded={open} onClick={()=>setOpen(v=>!v)}>☰</button>
     <nav className={`ritmo-global-nav ${open ? "open" : ""}`}>
       {hrefs.map((href,i)=><Link key={href} href={href} aria-current={location===href ? "page" : undefined} onClick={()=>setOpen(false)}>{labels[lang][i]}</Link>)}
+      {isAdmin&&<Link href="/admin/users" aria-current={location==="/admin/users" ? "page" : undefined} onClick={()=>setOpen(false)}>{lang==="pt"?"Administração":lang==="es"?"Administración":"Admin"}</Link>}
       <Link href="/escolher-versao" onClick={()=>setOpen(false)}>{lang==="pt"?"Trocar versão":lang==="es"?"Cambiar versión":"Switch version"}</Link>
     </nav>
     <div className="ritmo-global-actions">
