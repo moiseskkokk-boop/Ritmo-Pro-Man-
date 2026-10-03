@@ -26,7 +26,7 @@ export default function RitmoAppHeader() {
   if (!user) return null;
   const woman = user.experience === "woman";
   const name = user.name?.trim() || user.email?.split("@")[0] || "Cliente";
-  const isAdmin = user.role === "admin" || user.email?.trim().toLowerCase() === "moiseskkokk@gmail.com";
+  const isAdmin = user.email?.trim().toLowerCase() === "moiseskkokk@gmail.com";
   return <header className="ritmo-global-header">
     <Link href="/dashboard" className="ritmo-global-brand" onClick={()=>setOpen(false)}>
       <img src={woman ? "/brand/ritmo-pro-woman.png" : "/brand/ritmo-pro-man.png"} alt=""/>
