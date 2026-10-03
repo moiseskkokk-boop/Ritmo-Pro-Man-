@@ -12,14 +12,14 @@ import { TRPCError } from "@trpc/server";
 import { getSessionCookieOptions } from "./_core/cookies";
 import type { TrpcContext } from "./_core/context";
 import { ENV, getJwtSecret } from "./_core/env";
-import { attachMercadoPagoCheckout, createPendingSubscription, createLocalUser, createOAuthUser, createWorkoutPlan, deleteWorkoutPlan, getLatestUserSubscription, getUserByEmail, getUserById, getWorkoutPlans, invalidateUserSessions, saveBodyAnalysis, setUserLastSignedIn, updateSubscriptionByProviderId, updateUserName, updateUserExperience, updateUserPassword, updateWorkoutPlan, consumeAuthEmailToken, consumeAuthRateLimit, issueAuthEmailToken, markEmailVerified, setPendingUserEmail, updateUserEmail } from "./db";
+import { attachMercadoPagoCheckout, createPendingSubscription, createLocalUser, createOAuthUser, createWorkoutPlan, deleteWorkoutPlan, getLatestUserSubscription, getUserByEmail, getUserById, getWorkoutPlans, invalidateUserSessions, saveBodyAnalysis, setUserLastSignedIn, updateSubscriptionByProviderId, updateUserName, updateUserExperience, updateUserPassword, updateWorkoutPlan, consumeAuthEmailToken, consumeAuthRateLimit, issueAuthEmailToken, markEmailVerified, setPendingUserEmail, updateUserEmail, listAdminUsers } from "./db";
 import { runWorkoutGeneration } from "./ai/features/workout-generation";
 import { runWorkoutProgram } from "./ai/features/workout-program";
 import { runSmartwatchPhoto, runWeeklyWearable } from "./ai/features/smartwatch";
 import { runDay5 } from "./ai/features/day5";
 import { runBodyAnalysis } from "./ai/features/body-analysis";
 import { runNutritionAnalysis } from "./ai/features/nutrition-analysis";
-import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { getRecentTrainingContext, clearCurrentAssessment, deleteAllUserData, getAssessmentHistory, getBodyAnalysisHistory, getCurrentAssessment, getDailyHistory, getDailyLog, getWeeklyActivityAnalysis, getWearableActivities, getWearableConnections, ingestWearableActivity, resetUserProgress, saveAssessment, saveDailyLog, updateUserProfileImage, upsertWearableConnection } from "./db";
 import { storageGetSignedUrl, storagePut, storageRemove } from "./storage";
 import { bodyAnalysisResultSchema, decodeBodyImage, parseBodyAnalysisResponse } from "./body-analysis";
@@ -276,6 +276,10 @@ export const appRouter = router({
     }),
   }),
 
+
+  admin: router({
+    users: adminProcedure.input(z.object({ search: z.string().max(320).default(""), sort: z.enum(["newest", "oldest", "name"]).default("newest"), page: z.number().int().min(1).default(1), pageSize: z.number().int().min(1).max(100).default(25) })).query(({ input }) => listAdminUsers(input)),
+  }),
 
   profile: router({
     setExperience: protectedProcedure.input(z.object({ experience: z.enum(["man", "woman"]) })).mutation(async ({ ctx, input }) => {

@@ -24,6 +24,7 @@ const SubscriptionPage = lazy(() => import("./pages/Subscription"));
 const SignOutPage = lazy(() => import("./pages/SignOut"));
 const Experience = lazy(() => import("./pages/Experience"));
 const Woman = lazy(() => import("./pages/Woman"));
+const AdminUsers = lazy(() => import("./pages/AdminUsers"));
 
 const TrainingPage = () => <Fitness view="training" />;
 const AnalysisPage = () => <Home view="analysis" />;
@@ -60,6 +61,7 @@ function Router() {
         <Route path={"/privacidade"}>
           {() => <LegalPage kind="privacy" />}
         </Route>
+        <Route path={"/admin/users"} component={AdminUsers} />
         <Route path={"/login"} component={Login} />
         <Route path={"/404"} component={NotFound} />
         {/* Final fallback route */}

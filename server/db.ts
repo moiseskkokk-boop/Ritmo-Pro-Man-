@@ -87,6 +87,19 @@ export async function getUserById(userId: number) {
   return result[0];
 }
 
+export async function listAdminUsers(input: { search: string; sort: "newest" | "oldest" | "name"; page: number; pageSize: number }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const search = input.search.trim().toLowerCase();
+  const where = search ? sql`(LOWER(COALESCE(${users.name}, '')) LIKE ${`%${search}%`} OR LOWER(COALESCE(${users.email}, '')) LIKE ${`%${search}%`})` : undefined;
+  const order = input.sort === "oldest" ? users.createdAt : input.sort === "name" ? users.name : desc(users.createdAt);
+  const offset = (input.page - 1) * input.pageSize;
+  const rows = await db.select({ id: users.id, name: users.name, email: users.email, loginMethod: users.loginMethod, createdAt: users.createdAt, lastSignedIn: users.lastSignedIn }).from(users).where(where).orderBy(order).limit(input.pageSize).offset(offset);
+  const [counts] = await db.select({ total: sql<number>`count(*)::int`, last24h: sql<number>`count(*) filter (where ${users.createdAt} >= now() - interval '24 hours')::int`, last7d: sql<number>`count(*) filter (where ${users.createdAt} >= now() - interval '7 days')::int`, last30d: sql<number>`count(*) filter (where ${users.createdAt} >= now() - interval '30 days')::int` }).from(users);
+  const [filtered] = await db.select({ total: sql<number>`count(*)::int` }).from(users).where(where);
+  return { rows, counts, filteredTotal: filtered.total };
+}
+
 export async function getUserByEmail(email: string) {
   const db = await getDb();
   if (!db) return undefined;
